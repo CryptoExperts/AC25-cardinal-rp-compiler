@@ -83,7 +83,7 @@ def NRSM_4card_graph (n_values, p_values, lim_gamma) :
   for p in p_values :   
     logp = int(log(p, 2))
     
-    fig, ax = plt.subplots(figsize=(5.4, 4), dpi = 300)  
+    fig, ax = plt.subplots(figsize=(5.4, 4), dpi = 1200)  
     ax.set_xlabel(r"Number of random values $\gamma$")
     ax.set_ylabel("RPC (n,t,p)")
     ax.set_yscale('log', base=2)
@@ -190,7 +190,10 @@ def histo_mult_complexity (p_values, l_sec_level) :
     c_add_BFO23 = []
     c_mult_BFO23 = []
 
+    security = []
+
     for sec_level in l_sec_level :
+      security.append(str(-1  * int(log(sec_level, 2))))
       path = "./results/mult/"
       filename = (path + "mult_p" + str(logp) + "_seclev" + 
                   str(int(log(sec_level, 2))) + ".npy")
@@ -288,12 +291,12 @@ def histo_mult_complexity (p_values, l_sec_level) :
         c_add_BFO23.append(np.nan)
         c_mult_BFO23.append(np.nan)
 
-    
     ############################################################################
     ##################### Graph Computation for p ##############################
     graph_complexity(p, logp, l_sec_level, c_rand, c_add, c_mult, c_randbit, 
                      c_rand_JMB24, c_add_JMB24, c_mult_JMB24, c_rand_BFO23, 
-                     c_add_BFO23, c_mult_BFO23, "histo_p" +str(logp) +".pdf")  
+                     c_add_BFO23, c_mult_BFO23, "histo_p" +str(logp) +".pdf", 
+                     security)  
 
 
 
@@ -333,7 +336,11 @@ def histo_AES_complexity (p_values, l_sec_level) :
     c_add_BFO23 = []
     c_mult_BFO23 = []
 
+    security = []
+
     for sec_level in l_sec_level :
+      security.append(str(-1  * int(log(sec_level, 2))))
+
       #################### Determinations of the parameters ####################
       #################### to use for reach the security    ####################
       #################### level for my version             ####################
@@ -391,12 +398,6 @@ def histo_AES_complexity (p_values, l_sec_level) :
       print("l_gamma_sb = ", l_gamma_sb)
       print("log(eps, 2) = ", log(eps, 2))
 
-      if(sec_level == 2**-128) :
-        gamma_ark = 100
-        eps = compute_RPC_AES(n, p, logp, int(gamma_sb), l_gamma_sb.astype(int), int(gamma_mc), 
-                              int(gamma_ark), t)
-        print("new_eps = ", log(eps, 2))
-
       ##########################################################################
       ######################## Complexity computation ##########################
 
@@ -406,7 +407,7 @@ def histo_AES_complexity (p_values, l_sec_level) :
       c_rand.append(crand)
       c_add.append(cadd)
       c_mult.append(cmult)
-      c_randbit.append(crand_bit)
+      c_randbit.append(crand_bit // 8)
 
       ##########################################################################
       #################### Determinations of the parameters ####################
@@ -456,7 +457,7 @@ def histo_AES_complexity (p_values, l_sec_level) :
     graph_complexity(p, logp, l_sec_level, c_rand, c_add, c_mult, c_randbit, 
                      c_rand_JMB24, c_add_JMB24, c_mult_JMB24, c_rand_BFO23, 
                      c_add_BFO23, c_mult_BFO23, 
-                     "AES_histo_p" +str(logp) +".pdf")
+                     "AES_histo_p" +str(logp) +".pdf", security)
   
 
 
@@ -544,20 +545,20 @@ if __name__ == "__main__" :
   graph_bnet_st1([2**-3, 2**-5, 2**-10], 5)
 
   #Figure 16
-  graph_bnet_st2([2**-3, 2**-5, 2**-10], 11)
+  #graph_bnet_st2([2**-3, 2**-5, 2**-10], 11)
 
   #Figure 7 
   NRSM_4card_graph ([4, 8], [2**-6, 2**-12], 41)
   
   #Figure 8
-  gamma_n_p = find_plateau_RPM_n([2**-10, 2**-15, 2**-20], 19)
+  #gamma_n_p = find_plateau_RPM_n([2**-10, 2**-15, 2**-20], 19)
   #i = 0 
   #for p in [2**-10, 2**-15, 2**-20] :
   #  print("p = 2^"+ str(int(log(p, 2))) + ", gamma_n = " + str(gamma_n_p[i]))
   #  i += 1
 
   #Figure 9 
-  histo_mult_complexity ([2**-10, 2**-15, 2**-20], [2**-64, 2**-80])
+  histo_mult_complexity ([2**-10], [2**-64, 2**-80])
   histo_mult_complexity([2**-15, 2**-20], [2**-64, 2**-80, 2**-128])
 
   #Figure 14 
@@ -565,7 +566,7 @@ if __name__ == "__main__" :
   histo_AES_complexity ([2**-16], [2**-64, 2**-80])
 
   #Last paragraph of the core paper.
-  complexity_cRPCvstRPC (8, 2**-20, 0.1)
+  #complexity_cRPCvstRPC (8, 2**-20, 0.1)
 
 
 

@@ -829,6 +829,7 @@ def comp_mult_bfo23 (n) :
   Returns:   
     Complexity of the mult gadget of BFO23.
   """
+  print("n = ", n)
 
   nb_rand = int(n * (n - 1) / 2)
   L = ceil(log(n + 1, 2)) 
@@ -964,7 +965,7 @@ def comp_AES_enc_bfo23 (n) :
 
 def graph_complexity(p, logp, l_sec_level, crand, cadd, cmult, 
                      crandbit, crand_JMB24, cadd_JMB24, cmult_JMB24, 
-                     crand_BFO23, cadd_BFO23, cmult_BFO23, filename ) :
+                     crand_BFO23, cadd_BFO23, cmult_BFO23, filename, security ) :
   """
   Args:
     p (float) : The leakage rate.
@@ -989,7 +990,7 @@ def graph_complexity(p, logp, l_sec_level, crand, cadd, cmult,
   """
 
 
-  fig, ax = plt.subplots(1, 3, figsize=(12, 4), dpi=300)
+  fig, ax = plt.subplots(1, 3, figsize=(12, 4), dpi=1200)
   
   x = np.arange(len(l_sec_level))
   w = 0.25
@@ -1007,7 +1008,7 @@ def graph_complexity(p, logp, l_sec_level, crand, cadd, cmult,
   ax[0].legend(loc='upper left', fontsize = "x-small")
 
   ax[0].set_xticks(x) 
-  #ax[0].set_xticklabels(security)
+  ax[0].set_xticklabels(security)
 
   ax[1].bar(x - w, cadd_BFO23, width = w, label = "BFO23", color = 'green')  
   ax[1].bar(x + w, cadd, label = "Our Work", width = w)
@@ -1019,7 +1020,7 @@ def graph_complexity(p, logp, l_sec_level, crand, cadd, cmult,
   
   #ax2.set_yscale('log', base=2) 
   ax[1].set_xticks(x)  
-  #ax[1].set_xticklabels(security)
+  ax[1].set_xticklabels(security)
    
 
   ax[2].bar(x - w, cmult_BFO23, width = w, label = "BFO23", color = 'green')  
@@ -1032,7 +1033,7 @@ def graph_complexity(p, logp, l_sec_level, crand, cadd, cmult,
   
   #ax.set_yscale('log', base=2) 
   ax[2].set_xticks(x) 
-  #ax[2].set_xticklabels(security)  
+  ax[2].set_xticklabels(security)  
   
   fig.tight_layout()
   fig.savefig(filename, bbox_inches="tight")

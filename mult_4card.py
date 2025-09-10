@@ -832,9 +832,8 @@ def compute_final_graph(n_values, p, lim_gamma) :
   
   
   #plt.title ("Security (n,t,p)-RPC of NRSM, t = (n / 2), p = 2^"+str(int(log(p,2))))
-  fig, ax = plt.subplots(figsize=(5.4, 4), dpi = 300)
+  fig, ax = plt.subplots(figsize=(5.4, 4), dpi = 1200)
   
-  #plt.figure( figsize=(5.2, 3.6), dpi=300)
   ax.set_xlabel(r"Number of random values $\gamma$")
   ax.set_ylabel("RPC (n,t,p)")
   ax.set_yscale('log', base=2)

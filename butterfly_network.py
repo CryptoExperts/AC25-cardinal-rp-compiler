@@ -746,7 +746,7 @@ def compare_security_stage2 (logp, n_lim):
     np.save(str_prec4, eps4)
     np.save(str_prec5, eps5)  
 
-  fig, ax = plt.subplots(figsize=(5.4, 4), dpi = 300)
+  fig, ax = plt.subplots(figsize=(5.4, 4), dpi = 1200)
 
   ax.plot(n_values, eps5, marker='x', linestyle='', label="tRPC_v2")
   ax.plot(n_values, eps1, marker = 'x', linestyle='', label="cRPC_v1")
@@ -1076,7 +1076,7 @@ def compare_security_stage1 (logp, n_lim):
     eps_ucRPCv3.append(eps5)
     eps_ucRPCv4.append(eps6)
   
-  fig, ax = plt.subplots(figsize=(5.4, 4), dpi = 300)
+  fig, ax = plt.subplots(figsize=(5.4, 4), dpi = 1200)
 
   ax.plot(n_values, eps_tRPC, marker = 'x', linestyle='', label="tRPC_v2")
   ax.plot(n_values, eps_cRPCv1, marker = 'x', linestyle='', label="cRPC_v1")
