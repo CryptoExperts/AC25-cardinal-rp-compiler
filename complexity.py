@@ -997,9 +997,9 @@ def graph_complexity(p, logp, l_sec_level, crand, cadd, cmult,
   
   
   ax[0].bar(x - w, crand_BFO23, width = w, label = "BFO23", color = 'green')  
+  ax[0].bar(x, crand_JMB24, width = w, label = "JMB24", color = 'C1')
   ax[0].bar(x + w, crand, width = w, label = "Our Work - Random Fields", color = 'C0')
   ax[0].bar(x + w, crandbit, bottom  = crand, width = w, label = "Our work - Random Bits", color = 'skyblue')
-  ax[0].bar(x, crand_JMB24, width = w, label = "JMB24", color = 'C1')
   
   ax[0].set_ylabel("Number of randoms")
   ax[0].set_xlabel("Security Level")
@@ -1011,8 +1011,8 @@ def graph_complexity(p, logp, l_sec_level, crand, cadd, cmult,
   ax[0].set_xticklabels(security)
 
   ax[1].bar(x - w, cadd_BFO23, width = w, label = "BFO23", color = 'green')  
-  ax[1].bar(x + w, cadd, label = "Our Work", width = w)
-  ax[1].bar(x, cadd_JMB24, label = "JMB24", width = w)
+  ax[1].bar(x, cadd_JMB24, label = "JMB24", width = w, color = 'C1')
+  ax[1].bar(x + w, cadd, label = "Our Work", width = w, color= 'C0')
   ax[1].set_ylabel("Number of additions")
   ax[1].set_xlabel("Security Level")
   ax[1].set_title(r'\#Add')
@@ -1024,8 +1024,8 @@ def graph_complexity(p, logp, l_sec_level, crand, cadd, cmult,
    
 
   ax[2].bar(x - w, cmult_BFO23, width = w, label = "BFO23", color = 'green')  
-  ax[2].bar(x + w, cmult, label = "Our Work", width = w)
-  ax[2].bar(x, cmult_JMB24, label = "JMB24", width = w)
+  ax[2].bar(x, cmult_JMB24, label = "JMB24", width = w, color = 'C1')
+  ax[2].bar(x + w, cmult, label = "Our Work", width = w, color = 'C0')  
   ax[2].set_ylabel("Number of multiplications")
   ax[2].set_xlabel("Security Level")
   ax[2].set_title(r'\#Mult')
