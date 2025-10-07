@@ -102,7 +102,6 @@ def proceed_para (n, target_file, param, nb_param_env, cores) :
   return env
 
 ################################################################################
-
 ###########################  Subytes Enveloppes ################################
 
 ###  Enveloppes for x --> x^{254} in GF(256) ###
@@ -206,10 +205,6 @@ def expo_precomp1 (n, prec_meta1, prec_meta2) :
         env[i, j1, j2] = min (1, env[i, j1, j2])
   return env
   
-#Precomputation 2 - 1 :
-#
-# 
-#
 def expo_precomp21(n, envn_sq, envn_mult) :
   envn = np.zeros((n + 1, n + 1, n + 1))
   for i1 in range (n + 1) : 
@@ -231,6 +226,21 @@ def expo_precomp2(n, envn_prec1, envn_prec21) :
   return envn    
   
 def env_expo_254 (n, p, envn_sq, envn_mult, pgref) :
+  """
+  Compute the cardinal RPC envelope of the Exponentiation part of the Subbytes
+  block (see Figure 11 of the full paper).
+
+  Args :
+    n : The Number of shares.
+    p : Probability Leakage rates.
+    envn_sq : Cardinal RPC envelope of the squaring gadget.
+    envn_mult : Cardinal RPC envelope of the multiplication gadget.
+    pgref : Cardinal RPC envelope of the refresh gadget.
+  
+  Returns : 
+    Cardinal RPC envelope of the gadget computing x^{254} for a secret x.  
+  """
+
   hypergeom = precomp_hypergeom(n)
   envhypergeom = env_perm(n, hypergeom)
   envhypergeom = full_env_perm(n, p, envhypergeom)
@@ -402,7 +412,27 @@ def env_copy_simple (n, p, env_ref, hypergeom) :
   return env
 
 def env_affine(n, p, env_ref, envn_sq, envn_add, envn_cmult, envn_cadd, hypergeom, cores) : 
+  """
+  Compute the cardinal RPC envelope of the Affine part of the Subbytes
+  block (see Figure 12 of the full paper).
+
+  Args :
+    n : The Number of shares.
+    p : Probability Leakage rates.
+    env_ref : Cardinal RPC envelope of the refresh gadget.
+    envn_sq : Cardinal RPC envelope of the squaring gadget.
+    envn_add : Cardinal RPC envelope of the addition gadget.
+    envn_cmult : Cardinal RPC envelope of the multiplication by a constant 
+    gadget.
+    envn_cadd : Cardinal RPC envelope of the addition by a constant gadget.
+    hypergeom : Probability distribution of the Hypergeometric law.
+    cores : Number of cores.
   
+  Returns : 
+    Cardinal RPC envelope of the Affine part of Subbytes.  
+  """
+
+
   env_copy = env_copy_simple(n, p, env_ref, hypergeom)
   envn_perm = env_perm(n, hypergeom)
   envn_perm = full_env_perm(n, p, envn_perm) 
@@ -423,9 +453,18 @@ def env_affine(n, p, env_ref, envn_sq, envn_add, envn_cmult, envn_cadd, hypergeo
   return env
 
 
-### Compute Subbytes envelopes ###
-
 def env_subbytes (n, env_exp, env_aff) :
+  """
+  Compute the cardinal RPC envelope of Subbytes.
+
+  Args : 
+    n : Number of shares.
+    env_exp : Cardinal RPC envelope of the Exponentiation gadget.
+    env_aff : Cardinal RPC envelope of the Affine gadget.
+  
+  Returns : 
+    Cardinal RPC envelope of Subbytes.
+  """
   env = np.zeros((n + 1, n + 1)) 
   for i in range (n + 1) : 
     for j in range (n + 1) : 
@@ -717,7 +756,24 @@ def mc_prec11_para (n, name_prec10, name_prec7, i1, i2, queue) :
   return
 
 
-def env_start_mixc (n, p, t, env_add, env_cmult, hypergeom, pgref, env_sb, cores) :
+def env_start_mixc (n, p, env_add, env_cmult, hypergeom, pgref, cores) :
+  """
+  Compute the cardinal RPC envelope of the start part of MixColumn (i.e. one 
+  blue frame on the Figure 13 of the full paper version)
+
+  Args : 
+    n : Number of shares.
+    p : Probability Leakage rate.
+    env_add : Cardinal RPC envelope of the addition gadget.
+    env_cmult : Cardinal RPC envelope of the multiplication by constant gadget.
+    hypergeom : Hypergeometric Distribution.
+    pgref : Cardinal RPC envelope of the refresh gadget.
+    cores : Number of cores.
+
+  Returns : 
+    Cardinal RPC envelope of the blue frame on the Figure 13.
+
+  """
   envhypergeom = mc_prechypergeom(n, hypergeom)
   envhypergeom = full_env_perm(n, p, envhypergeom)
   #envhypergeom = mc_sb_hypergeom(n, envhypergeom, env_sb)
@@ -1013,8 +1069,8 @@ def compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, gamma_ark, t, co
   env_endmc_ark_sb_ark = env_endmixc_ark_sb_ark (n, envn_add_mc, env_ark_sb_ark)
   
   #MixColumns without the last addition enveloppes.
-  env_start_mc = env_start_mixc (n, p, t, envn_add_mc, envn_cmult_mc, hypergeom, 
-                                 pgref_mc, env_sb, cores) 
+  env_start_mc = env_start_mixc (n, p, envn_add_mc, envn_cmult_mc, hypergeom, 
+                                 pgref_mc, cores) 
 
 
 
@@ -1053,12 +1109,8 @@ def full_tRPC_AES (p, sec_lev, thr, cores) :
     l_gamma_mult = [500] * n
     eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
 
-  print("n = ", n)
   eps, gamma = optimize_gamma_tRPC (n, p, thr, eps, cores)
-  print("gamma = ", gamma)
   eps, l_gamma = optimize_l_gamma_mult_tRPC (n, p, thr, gamma, eps, cores)
-  print("l_gamma = ", l_gamma)
-  print("eps = ", log(eps, 2))
   return eps
 
 def compare_cRPC_tRPC_AES (n, p, thr, cores) :
@@ -1157,7 +1209,6 @@ def optimize_l_gamma_mult_tRPC (n, p, thr, gamma, eps_witness, cores) :
     l_gamma_mult[1] = 0
 
     for i in range (2, len(l_gamma_mult)) :
-      print("i = ", i)
       l_gamma_mult[i] = 0
       eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
       while (np.abs(log(eps, 2) - log(eps_witness, 2)) > thr) :

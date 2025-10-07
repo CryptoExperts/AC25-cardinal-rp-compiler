@@ -11,8 +11,6 @@
 # This module is used to produce Figure 7 of the full paper (uniform symmetric 
 # variant),generating the points labeled `Unif = 4` and `Unif = 8` on the graph.
 
-
-from threading import Thread
 import numpy as np
 import os
 

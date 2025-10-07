@@ -15,8 +15,6 @@
 # The Figure 7 is notably built with the function ``compute_graph``.
 
 
-from threading import Thread
-#from queue import Queue
 import numpy as np
 import os
 

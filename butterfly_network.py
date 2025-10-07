@@ -379,7 +379,7 @@ def precomp_hypergeom(N) :
   return precomp
 
 def ucRPC_prec1 (n, env_add, hypergeom) :
-  """
+  r"""
   Starts to compute the uniformly cardinal RPC enveloppe of : 
   ---------------- + -------->
           \       /
