@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
 
+# This file computes the cardinal-RPC envelopes uniform variant of 
+# CardSecMult for every number of shares n >= 2.
+# We consider in this file that the output of UnifMatMult is given as a single 
+# n**2 instead of the file ``mult_4card.py`` and ``mult_uni_4card.py`` which 
+# consider 4 n**2/4 sharings at the output of UnifMatMult.
+# Consequently, we consider a single input sharing of size n**2 at the input of 
+# TreeAdd.
+# This file is the core file which will be used to compute the enveloppe of the 
+# multiplication gadget used in our masked AES implementation, the function 
+# `compute_envn_mult` gives the uniformly cardinal RPC enveloppe of the 
+# multiplication gadget (i.e. implemented with UnifMatMult). 
+# Then this multiplication gadget is used in the bar chart of Figure 9 and 
+# Figure 14 of the full paper.
+# Moreover, functions `find_plateau_RPM_n` and `find_plateau_RPM` are the one 
+# used to compute Figure 8 of the paper.  
+
+
+################################################################################
+################################## Packages ####################################
+
 import numpy as np
 import os
 import glob
@@ -14,16 +34,21 @@ from math import log
 
 
 
-#********************** MatMult Enveloppes **********************
+
+
+################################################################################
+############################ MatMult Enveloppes ################################
 
 def precomp_hypergeom(nx, ny) :
   """
-  Precompute the hypergeometric distribution for ⌊nx / 2⌋, ⌈nx / 2⌉,
-                                                                                                  ⌊ny / 2⌋, ⌈ny / 2⌉.
-                                                 
-  :param nx: Number of shares for the secret x.
-  :param ny: Number of shares for the secret y.
-  :return: Array containing the four hypergeometric distribution.
+  Precompute the hypergeometric distribution for ⌊nx / 2⌋, ⌈nx / 2⌉, ⌊ny / 2⌋, ⌈ny / 2⌉.
+
+  Args:
+    nx: Number of shares for the secret x.
+    ny: Number of shares for the secret y.
+
+  Returns:
+    Array containing the four hypergeometric distribution.
   """
   
   nxl = int(nx / 2)
@@ -49,35 +74,31 @@ def precomp_hypergeom(nx, ny) :
 
 
 def precompute_single_proba_sym_case (nx, ny, env_MM, env_ref_nx, env_ref_ny):       
-  
   """
-  Compute the probability of the following circuit :
+  Compute the probability of the following circuit (one branch of MatMult):
   
-  ```
-  x ---|Ref(nx)|--- 
-                   |
-                    -------|UnifMatMult(nx,ny)|-------> 
-                   | 
-  y ---|Ref(ny)|--- 
-  ```
-  
-  knowing the envelopes of the refresh gadget as well as the envelope of 
-  UnifMatMult. This circuit corresponds to one of the four branch of a bigger 
-  MatMult.
-  
-  
-  :param nx: Number of shares for the secret x.
-  :param ny: Number of shares for the secret y.
-  :param env_MM: Cardinal-RPC envelopes of UnifMatMult instantiated with nx, ny.
-  :param env_ref_nx: Cardinal-RPC envelopes of RPRefresh instantiated with nx.
-  :param env_ref_ny: Cardinal-RPC envelopes of RPRefresh instantiated with ny.
-  :return: The Cardinal-RPC envelopes of the circuit described above. It is an
-           array 3D 'case[j, ix, iy]' where :
-            - j stands for the cardinality of the output leaked.
-            - ix stands for the cardinality of the input shares of x leaked.
-            - iy stands for the cardinality of the input shares of y leaked.  
+      x ---|Ref(nx)|--- 
+                         |
+                          -------|UnifMatMult(nx, ny)|-------> 
+                         | 
+      y ---|Ref(ny)|---
+
+  The envelopes of the refresh gadgets and of ``UnifMatMult`` are assumed known.
+
+  Args:
+    nx: Number of shares for the secret x.
+    ny: Number of shares for the secret y.
+    env_MM: Cardinal-RPC envelopes of ``UnifMatMult`` instantiated with ``nx, ny``.
+    env_ref_nx: Cardinal-RPC envelopes of ``RPRefresh`` instantiated with ``nx``.
+    env_ref_ny: Cardinal-RPC envelopes of ``RPRefresh`` instantiated with ``ny``.
+
+  Returns:
+    numpy.ndarray: The Cardinal-RPC envelopes of the circuit described above.
+      A 3D array ``case[j, ix, iy]`` where:
+        - ``j`` is the cardinality of the leaked output,
+        - ``ix`` is the cardinality of the leaked input shares of ``x``,
+        - ``iy`` is the cardinality of the leaked input shares of ``y``.
   """
-   
   lim_card = nx * ny + 1
   lim_x = nx + 1
   lim_y = ny + 1
@@ -120,23 +141,27 @@ def precompute_single_proba_sym_case (nx, ny, env_MM, env_ref_nx, env_ref_ny):
 
 def precomp1 (nx, ny, single_proba_three, single_proba_four, j3, j4, hypergeom, queue) :
   """
-  Compute : 
-    Σ_{l4=0}^{end} 	Σ_{i14=l4}^{end} ε_{j3}(*1, i14).ε_{j4}(*2, end + l4 - i14).
-                                     H(⌈ny / 2⌉  , i14, end + l4 - i14, l4)
-                                     
-  For end in range [0, ⌈ny / 2⌉] and *1, *2 in range [0, ⌊nx / 2⌋] and [0, ⌈nx / 2⌉]
-  
-  :param nx: Number of shares for the secret x.
-  :param ny: Number of shares for the secret y.
-  :param single_proba_three: Cardinal-RPC envelopes used for ε_{j3}. 
-  :param single_proba_four: Cardinal-RPC envelopes used for ε_{j4}.   
-  :param j3: Cardinal of the leaked output shares of the third branch of
-                  UnifMatMult (See Figure TODO).
-  :param j4: Cardinal of the leaked output shares of the fourth branch of
-                  UnifMatMult (See Figure TODO).
-  :param hypergeom: The hypergeometric distribution.
-  :param queue: A queue to stack results (use of parallelisation).
-  :return: An array giving the results of the sum for all end, *1, *2.                 
+  Compute:
+    Σ_{l4=0}^{end} Σ_{i14=l4}^{end} ε_{j3}(*1, i14) · ε_{j4}(*2, end + l4 − i14)
+                     · H(⌈ny / 2⌉, i14, end + l4 − i14, l4)
+
+  for ``end ∈ [0, ⌈ny / 2⌉]`` and ``*1, *2`` in the ranges ``[0, ⌊nx / 2⌋]`` and
+  ``[0, ⌈nx / 2⌉]``.
+
+  Args:
+    nx: Number of shares for the secret x.
+    ny: Number of shares for the secret y.
+    single_proba_three: Cardinal-RPC envelopes used for ε_{j3}.
+    single_proba_four: Cardinal-RPC envelopes used for ε_{j4}.
+    j3: Cardinal of the leaked output shares of the third branch of
+        UnifMatMult (See Figure 5 & 6 of the paper).
+    j4: Cardinal of the leaked output shares of the fourth branch of
+        UnifMatMult (See Figure 5 & 6 of the paper).
+    hypergeom: The hypergeometric distribution.
+    queue: A queue to stack results (use of parallelisation).
+
+  Returns:
+    An array giving the results of the sum for all ``end``, ``*1``, ``*2``.
   """
   
   
@@ -161,22 +186,25 @@ def precomp1 (nx, ny, single_proba_three, single_proba_four, j3, j4, hypergeom, 
 def precomp2 (nx, ny, single_proba_one, single_proba_two, j1, j2, hypergeom, queue) :
   """
   Compute : 
-    Σ_{l3=0}^{end} 	Σ_{i13=l3}^{end} ε_{j1}(*1, i13).ε_{j2}(*2, end + l3 - i13).
+    Σ_{l3=0}^{end}  Σ_{i13=l3}^{end} ε_{j1}(*1, i13).ε_{j2}(*2, end + l3 - i13).
                                      H(⌊ny / 2⌋  , i13, end + l3 - i13, l3)
                                      
   For end in range [0, ⌊ny / 2⌋ ] and *1, *2 in range [0, ⌊nx / 2⌋] and [0, ⌈nx / 2⌉]
-  
-  :param nx: Number of shares for the secret x.
-  :param ny: Number of shares for the secret y.
-  :param single_proba_one: Cardinal-RPC envelopes used for ε_{j1}. 
-  :param single_proba_two: Cardinal-RPC envelopes used for ε_{j2}.   
-  :param j1: Cardinal of the leaked output shares of the first branch of
-                  UnifMatMult (See Figure TODO).
-  :param j2: Cardinal of the leaked output shares of the second branch of
-                  UnifMatMult (See Figure TODO).
-  :param hypergeom: The hypergeometric distribution.
-  :param queue: A queue to stack results (use of parallelisation).
-  :return: An array giving the results of the sum for all end, *1, *2.                 
+
+  Args:
+    nx: Number of shares for the secret x.
+    ny: Number of shares for the secret y.
+    single_proba_one: Cardinal-RPC envelopes used for ε_{j1}. 
+    single_proba_two: Cardinal-RPC envelopes used for ε_{j2}.   
+    j1: Cardinal of the leaked output shares of the first branch of
+        UnifMatMult (See Figure 5 & 6 of the paper).
+    j2: Cardinal of the leaked output shares of the second branch of
+        UnifMatMult (See Figure 5 & 6 of the paper).
+    hypergeom: The hypergeometric distribution.
+    queue: A queue to stack results (use of parallelisation).
+
+  Returns:
+    An array giving the results of the sum for all end, *1, *2.                 
   """
   
   
@@ -201,14 +229,17 @@ def precomp2 (nx, ny, single_proba_one, single_proba_two, j1, j2, hypergeom, que
 def initial_case_MM (p) :
   """
   Compute the cardinal-RPC envelopes of UnifMatMult when nx = ny = 1
-  (Base case n°1), see Proof of Lemma TODO in Appendix TODO for details.
-  
-  :param p: The leakage probability.
-  :return: The cardinal-RPC envelopes of UnifMatMult with nx = ny = 1.It is an
-           array 3D 'case[j, ix, iy]' where :
-            - j stands for the cardinality of the output leaked.
-            - ix stands for the cardinality of the input shares of x leaked.
-            - iy stands for the cardinality of the input shares of y leaked.  
+  (Base case n°1), see Proof of Lemma 12 in Appendix E for details.
+
+  Args:
+    p: The leakage probability.
+
+  Returns:
+    The cardinal-RPC envelopes of UnifMatMult with nx = ny = 1. It is an
+    array 3D 'case[j, ix, iy]' where :
+      - j stands for the cardinality of the output leaked.
+      - ix stands for the cardinality of the input shares of x leaked.
+      - iy stands for the cardinality of the input shares of y leaked.
   """
   
   case = np.zeros((2, 2, 2))
@@ -226,14 +257,17 @@ def initial_case_MM (p) :
 def special_case_MM_nx (p) :
   """
   Compute the cardinal-RPC envelopes of UnifMatMult when nx = 2 and ny = 1
-  (Base case n°2), see Proof of Lemma TODO in Appendix TODO for details.
-  
-  :param p: The leakage probability.
-  :return: The cardinal-RPC envelopes of UnifMatMult with nx = 2 and  ny = 1.
-           It is an array 3D 'case[j, ix, iy]' where :
-            - j stands for the cardinality of the output leaked.
-            - ix stands for the cardinality of the input shares of x leaked.
-            - iy stands for the cardinality of the input shares of y leaked.  
+  (Base case n°2), see Proof of Lemma 12 in Appendix E for details.
+
+  Args:
+    p: The leakage probability.
+
+  Returns:
+    The cardinal-RPC envelopes of UnifMatMult with nx = 2 and  ny = 1.
+    It is an array 3D 'case[j, ix, iy]' where :
+      - j stands for the cardinality of the output leaked.
+      - ix stands for the cardinality of the input shares of x leaked.
+      - iy stands for the cardinality of the input shares of y leaked.
   """
   
   
@@ -264,14 +298,17 @@ def special_case_MM_nx (p) :
 def special_case_MM_ny (p) :
   """
   Compute the cardinal-RPC envelopes of UnifMatMult when nx = 1 and ny = 2
-  (Base case n°3), see Proof of Lemma TODO in Appendix TODO for details.
-  
-  :param p: The leakage probability.
-  :return: The cardinal-RPC envelopes of UnifMatMult with nx = 1 and  ny = 2.
-           It is an array 3D 'case[j, ix, iy]' where :
-            - j stands for the cardinality of the output leaked.
-            - ix stands for the cardinality of the input shares of x leaked.
-            - iy stands for the cardinality of the input shares of y leaked.  
+  (Base case n°3), see Proof of Lemma 12 in Appendix E for details.
+
+  Args:
+    p: The leakage probability.
+
+  Returns:
+    The cardinal-RPC envelopes of UnifMatMult with nx = 1 and  ny = 2.
+    It is an array 3D 'case[j, ix, iy]' where :
+      - j stands for the cardinality of the output leaked.
+      - ix stands for the cardinality of the input shares of x leaked.
+      - iy stands for the cardinality of the input shares of y leaked.
   """
 
   case = np.zeros((3, 2, 3))
@@ -301,20 +338,23 @@ def special_case_MM_ny (p) :
  
 def compute_proba(nx, ny, j, ix, iy, prec1, prec2, hypergeom) :
   """
-  Compute the overall envelopes ε_{j}(ix, iy) of UnifMatMult following the 
-  formula in Proof of Lemma TODO in Appendix TODO.
-  
-  :param nx: Number of shares for the secret x.
-  :param ny: Number of shares for the secret y.
-  :param j: Cardinality of output shares leaked.
-  :param ix: Cardinality of input shares from x leaked.
-  :param iy: Cardinality of input shares from y leaked.
-  :param prec1: Outputs of the function 'precomp1', it is an array of the two 
-                last sum in the Formula.
-  :param prec2: Outputs of the function 'precomp2', it is an array of the third 
-                and fourth last sum in the Formula.
-  :param hypergeom: Array containing the hypergeometric distribution.
-  :return: ε_{j}(ix, iy)
+  Compute the overall envelopes ε_{j}(ix, iy) of UnifMatMult following the
+  formula in Proof of Lemma 12 in Appendix E.
+
+  Args:
+    nx: Number of shares for the secret x.
+    ny: Number of shares for the secret y.
+    j: Cardinality of output shares leaked.
+    ix: Cardinality of input shares from x leaked.
+    iy: Cardinality of input shares from y leaked.
+    prec1: Outputs of the function 'precomp1', it is an array of the two
+      last sum in the Formula.
+    prec2: Outputs of the function 'precomp2', it is an array of the third
+      and fourth last sum in the Formula.
+    hypergeom: Array containing the hypergeometric distribution.
+
+  Returns:
+    ε_{j}(ix, iy)
   """
   nxl = int (nx / 2)
   nyl = int (ny / 2)
@@ -345,9 +385,10 @@ def compute_proba(nx, ny, j, ix, iy, prec1, prec2, hypergeom) :
           pr += sub_pr 
   return pr
 
-
-#TODO : J'ai ajouté ça, voir ce que ça donne avec .
-def final_induction_enveloppes(nx, ny, p, start_env) : 
+def final_induction_enveloppes(nx, ny, p, start_env) :
+  """
+  TODO
+  """
   nxh = nx // 2
   nyh = ny // 2
   lim_card = nx * ny + 1
@@ -357,8 +398,6 @@ def final_induction_enveloppes(nx, ny, p, start_env) :
       for iy in range (ny + 1) :
         for lx in range (ix + 1) :
           for ly in range (iy + 1) :
-            #comb1 = comb(ix, lx)
-            #comb2 = comb(iy, ly)
             comb1 = comb(nx - ix + lx, lx)
             comb2 = comb(ny - iy + ly, ly)
             env[j, ix, iy] += comb1 * comb2 * p**(lx + ly) * (1 - p)**(nx + ny - ix - iy) * start_env[j, ix - lx, iy - ly]
@@ -369,16 +408,19 @@ def induction_envelopes(nx, ny, prec1, prec2, ix, iy, hypergeom, queue) :
   """
   Compute the cardinal-RPC envelopes  ε_{j}(ix, iy) of UnifMatMult for all j in
   range [0, nx.ny].
-  
-  :param nx: Number of shares for the secret x.
-  :param ny: Number of shares for the secret y.
-  :param prec1: Outputs of the function 'precomp1'.
-  :param prec2: Outputs of the function 'precomp2'.
-  :param ix: Cardinality of input shares from x leaked.
-  :param iy: Cardinality of input shares from y leaked.
-  :param hypergeom: Array containing the hypergeometric distribution.
-  :param queue: A queue to stack results (use of parallelisation).
-  :return : ε_{j}(ix, iy) for all j in range [0, nx.ny]
+
+  Args:
+    nx: Number of shares for the secret x.
+    ny: Number of shares for the secret y.
+    prec1: Outputs of the function 'precomp1'.
+    prec2: Outputs of the function 'precomp2'.
+    ix: Cardinality of input shares from x leaked.
+    iy: Cardinality of input shares from y leaked.
+    hypergeom: Array containing the hypergeometric distribution.
+    queue: A queue to stack results (use of parallelisation).
+
+  Returns:
+    ε_{j}(ix, iy) for all j in range [0, nx.ny]
   """ 
   lim_card = nx * ny + 1
   env = np.zeros((lim_card, nx + 1, ny + 1))
@@ -399,10 +441,13 @@ def compute_partition_J(nx, ny) :
     - 0 <= j2 <=  ⌈nx / 2⌉ . ⌊ny / 2⌋
     - 0 <= j3 <=  ⌊nx / 2⌋ . ⌈ny / 2⌉ 
     - 0 <= j4 <=  ⌈nx / 2⌉ . ⌈ny / 2⌉
-    
-  :param nx: Number of shares for the secret x.
-  :param ny: Number of shares for the secret y.
-  :return : The number of 4-uplet (j1, j2, j3, j4) for all j in range [0, nx.ny] 
+
+  Args:
+    nx: Number of shares for the secret x.
+    ny: Number of shares for the secret y.
+
+  Returns:
+    The number of 4-uplet (j1, j2, j3, j4) for all j in range [0, nx.ny] 
   """
   nxl = int(nx /2)
   nxr = nx - nxl
@@ -422,25 +467,28 @@ def compute_partition_J(nx, ny) :
   
   return card_part 
   
-#Compute the probability envelopes for MatMult.
-def compute_envn_MM (nx, ny, p, gamma_l) :
+def compute_envn_MM (nx, ny, p, gamma_l, cores) :
   """
   Compute the cardinal-RPC envelopes of UnifMatMult using the formula in Proof
-  of Lemma TODO in Appendix TODO.
+  of Lemma 14 in Appendix E.
   Optimisation : We use a list of gamma (for the envelopes of refresh gadget 
                  RPRefresh) according to the number of shares currently used in 
                  the induction step. In this way, we lower the number of gamma 
                  used when the number of shares decreased. This upgrade the 
                  trade-off security/complexity.
                  
-  :param nx: Number of shares for the secret x.
-  :param ny: Number of shares for the secret y.
-  :param p: The leakage rate in [0, 1].
-  :param gamma_l: The list of gamma used in RPRefresh according to the number of
-                  shares(optimisation).
-  :return: The cardinal-RPC envelopes of UnifMatMult used with nx input shares 
-           for x and ny input shares for ny.
-  """  
+  Args:
+    nx: Number of shares for the secret x.
+    ny: Number of shares for the secret y.
+    p: The leakage rate in [0, 1].
+    gamma_l: The list of gamma used in RPRefresh according to the number of
+      shares(optimisation).
+    cores : Number of cores.
+
+  Returns:
+    The cardinal-RPC envelopes of UnifMatMult used with nx input shares 
+    for x and ny input shares for ny.
+  """ 
   if (os.path.isfile(str(nx) + "_" + str(ny) + ".npy") ) :
       env = np.load(str(nx) + "_" + str(ny) +".npy")
       return env
@@ -475,19 +523,19 @@ def compute_envn_MM (nx, ny, p, gamma_l) :
   pgrefxr = cardinal_rpc_refresh_envelope(nxr, p, gamma_l[nxr])
   pgrefyr = cardinal_rpc_refresh_envelope(nyr, p, gamma_l[nyr])      
     
-  env_LL = compute_envn_MM (nxl, nyl, p, gamma_l)
+  env_LL = compute_envn_MM (nxl, nyl, p, gamma_l, cores)
   prec_LL = precompute_single_proba_sym_case(nxl, nyl, env_LL, pgrefxl, 
                                                pgrefyl)
     
-  env_LR = compute_envn_MM (nxr, nyl, p, gamma_l)
+  env_LR = compute_envn_MM (nxr, nyl, p, gamma_l, cores)
   prec_LR = precompute_single_proba_sym_case(nxr, nyl, env_LR, pgrefxr, 
                                                pgrefyl)
     
-  env_RL = compute_envn_MM (nxl, nyr, p, gamma_l)
+  env_RL = compute_envn_MM (nxl, nyr, p, gamma_l, cores)
   prec_RL = precompute_single_proba_sym_case(nxl, nyr, env_RL, pgrefxl, 
                                                  pgrefyr)
     
-  env_RR = compute_envn_MM (nxr, nyr, p, gamma_l)
+  env_RR = compute_envn_MM (nxr, nyr, p, gamma_l, cores)
   prec_RR = precompute_single_proba_sym_case(nxr, nyr, env_RR, pgrefxr, 
                                                pgrefyr)
     
@@ -502,7 +550,6 @@ def compute_envn_MM (nx, ny, p, gamma_l) :
       processes.append(Process(target=precomp1, 
                                args=(nx, ny, prec_RL, prec_RR, j3, j4, 
                                      hypergeom, queue)))
-  cores = 2 * 192
   nb_process = 0
   while (nb_process < len(processes)) :
     lim = min(cores + nb_process, len(processes))
@@ -530,7 +577,6 @@ def compute_envn_MM (nx, ny, p, gamma_l) :
                                args=(nx, ny, prec_LL, prec_LR, j1, j2, 
                                      hypergeom, queue)))
       
-  cores = 2 * 192
   nb_process = 0
   while (nb_process < len(processes)) :
     lim = min(cores + nb_process, len(processes))
@@ -578,31 +624,32 @@ def compute_envn_MM (nx, ny, p, gamma_l) :
 
 
 
-#********************** TreeAdd Enveloppes **********************
+################################################################################   
+############################# TreeAdd Enveloppes ###############################
 
-#Base case for TreeAdd.
 def initial_case_TA(n, p, envgadd) :
-  """
-  Compute the cardinal-RPC envelopes of the base case of BasicTreeAdd. 
-  It is the circuit :
-  
-  ```
-  |n-sharing|---
-                \\
-                 + --->  
-                /
-  |n-sharing|---
-  ``` 
-  
-  We keep in mind that the output of BasicTreeAdd is a n.n sharing (in this 
-  case a 2.n-sharing), this is why we have to split the 2.n inputs shares in two 
-  parts (i1 and i - i1 in the function) during the computation.
-  
-  :param n: The number of shares.
-  :param p: The leakage rate in [0,1].
-  :param envgadd: The cardinal-RPC envelopes of the addition gadget.
-  :return: The cardinal-RPC envelopes of the circuit above, where the two 
-           n-sharing are seen as a unique 2.n-sharing. 
+  r"""
+  Compute the cardinal-RPC envelopes of the base case of TreeAdd.
+
+  Circuit:
+      |n-sharing|---
+                    \
+                     + --->
+                    /
+      |n-sharing|---
+
+  We keep in mind that the output of UnifMatMult is an n·n sharing (in the 
+  initial case a 2·n-sharing), which is why we split the 2·n input shares into 
+  two parts (``i1`` and ``i - i1``) during the computation.
+
+  Args:
+    n: The number of shares.
+    p: The leakage rate in [0, 1].
+    envgadd: The cardinal-RPC envelopes of the addition gadget.
+
+  Returns:
+    The cardinal-RPC envelopes of the circuit above, where the two n-sharing
+    are seen as a unique 2·n-sharing.
   """
   envn = np.zeros((2 * n + 1, n + 1))
   for i in range (2 * n + 1) :
@@ -615,47 +662,33 @@ def initial_case_TA(n, p, envgadd) :
         
   return envn
 
-
-"""
-Non parallelized version.
-def env_fin_TA (n, ell, env_TA1, env_TA2, envgadd) :
-  ell_rec = ell // 2
-  env_TA = np.zeros((ell * n + 1, n + 1))
-  for tin in range (ell * n + 1) :
-    for tout in range (n + 1) :
-      for tin1 in range (max(0, tin - (ell - ell_rec) * n), min(ell_rec * n, tin) + 1) :
-        for i1 in range (n + 1) :
-          for i2 in range (n + 1) :
-            env_TA[tin, tout] += env_TA1[tin1, i1] * env_TA2[tin - tin1, i2] * envgadd[i1, i2, tout]
-      env_TA[tin, tout] = min(1, env_TA[tin, tout])
-  
-  return env_TA 
-"""
 def env_fin_TA (n, ell, env_TA1, env_TA2, envgadd, tin, queue) :
-  """
-  Compute the cardinal-RPC envelopes of the circuit :
+  r"""
+  Compute the cardinal-RPC envelopes of the circuit:
   
-  ```
-  |(⌊ell/2⌋.n)-sharing|--- |BasicTreeAdd|
-                                        \\
-                                         + --->  
-                                        /
-  |(⌈ell/2⌉.n)-sharing|--- |BasicTreeAdd|
-  ```
+      |(⌊ell/2⌋·n)-sharing|--- |TreeAdd|
+                                            \
+                                             + --->
+                                            /
+      |(⌈ell/2⌉·n)-sharing|--- |TreeAdd|
   
-  This circuit is the induction step of BasicTreeAdd.
-  :param n: The number of shares.
-  :param ell: The number of n-sharing of the output matrix of UnifMatMult used 
-              for the induction.
-  :param envn_TA1: The cardinal-RPC envelopes of BasicTreeAdd used with an 
-                   (⌊ell/2⌋.n)-sharing input.
-  :param envn_TA1: The cardinal-RPC envelopes of BasicTreeAdd used with an 
-                   (⌈ell/2⌉.n)-sharing input.
-  :param envgadd: The cardinal-RPC envelopes of the addition gadget.
-  :param tin: Number of input shares leaked among the (ell.n) shares input.
-  :param queue: A queue to stack results (use of parallelisation).
-  :return: The cardinal-RPC envelopes of the circuit above, where the two 
-           sharings in input are seen as a unique (ell.n)-sharing.                
+  This circuit is the induction step of TreeAdd.
+
+  Args:
+    n: The number of shares.
+    ell: The number of n-sharing of the output matrix of UnifMatMult used
+      for the induction.
+    env_TA1: The cardinal-RPC envelopes of TreeAdd used with an
+      (⌊ell/2⌋·n)-sharing input.
+    env_TA2: The cardinal-RPC envelopes of TreeAdd used with an
+      (⌈ell/2⌉·n)-sharing input.
+    envgadd: The cardinal-RPC envelopes of the addition gadget.
+    tin: Number of input shares leaked among the (ell·n) shares input.
+    queue: A queue to stack results (use of parallelisation).
+
+  Returns:
+    The cardinal-RPC envelopes of the circuit above, where the two
+    sharings in input are seen as a unique (ell·n)-sharing.
   """
   ell_rec = ell // 2
   env_TA = np.zeros((n + 1))
@@ -671,19 +704,21 @@ def env_fin_TA (n, ell, env_TA1, env_TA2, envgadd, tin, queue) :
 
 
 
-#Compute the probability envelopes of TreeAdd.        
-def compute_envn_TA (n, ell, p, gamma) :
+def compute_envn_TA (n, ell, p, gamma, cores) :
   """
-  Compute the cardinal-RPC envelopes of BasicTreeAdd used with a 
+  Compute the cardinal-RPC envelopes of TreeAdd used with a 
   (ell.n)-sharing inputs.
-  
-  :param n: The number of shares.
-  :param ell: The number of n-sharing of the output matrix of UnifMatMult used 
-              for the induction.
-  :param p: The leakage rate in [0, 1].
-  :param gamma: The gamma used for the instantiation of RPRefresh gadget.
-  :return: The cardinal-RPC envelopes of BasicTreeAdd.
-  
+
+  Args:
+    n: The number of shares.
+    ell: The number of n-sharing of the output matrix of UnifMatMult used 
+      for the induction.
+    p: The leakage rate in [0, 1].
+    gamma: The gamma used for the instantiation of RPRefresh gadget.
+    cores : Number of cores.
+
+  Returns:
+    The cardinal-RPC envelopes of TreeAdd.
   """
   if (ell == 2) :  
     pgref = cardinal_rpc_refresh_envelope(n, p, gamma)
@@ -706,8 +741,8 @@ def compute_envn_TA (n, ell, p, gamma) :
    
   ell_rec = ell // 2
    
-  env_TA1 = compute_envn_TA(n, ell_rec, p, gamma)
-  env_TA2 = compute_envn_TA(n, ell - ell_rec, p, gamma)  
+  env_TA1 = compute_envn_TA(n, ell_rec, p, gamma, cores)
+  env_TA2 = compute_envn_TA(n, ell - ell_rec, p, gamma, cores)  
   pgref = cardinal_rpc_refresh_envelope(n, p, gamma)
   envgadd = cardinal_rpc_add_envelope(n, p, pgref)
 
@@ -721,7 +756,6 @@ def compute_envn_TA (n, ell, p, gamma) :
                                args=(n, ell, env_TA1, env_TA2, envgadd, tin, 
                                      queue)))
   
-  cores = 2 * 192
   nb_process = 0
   while (nb_process < len(processes)) :
     lim = min(cores + nb_process, len(processes))
@@ -740,24 +774,25 @@ def compute_envn_TA (n, ell, p, gamma) :
       processes[i].terminate()
       processes[i].close()
       nb_process += 1
- 
-
-
-  #env_TA = env_fin_TA (n, ell, env_TA1, env_TA2, envgadd)
-   
+    
   return env_TA
 
 
-#********************** CardSecMult envelopes **********************
+################################################################################
+########################### CardSecMult envelopes ##############################
+
 def compute_envn (n, envn_MM, envn_TA) :
   """
-  Compute the Cardinal-RPC envelopes of CardSecMult from the envelopes of 
-  UnifMatMult and BasicTreeAdd thanks to Lemma TODO.
-  
-  :param n: The number of shares.
-  :param envn_MM: The cardinal-RPC envelopes of UnifMatMult.
-  :param envn_TA: The cardinal-RPC envelopes of BasicTreeAdd.
-  :return: The cardinal-RPC envelopes of CardSecMult.
+  Compute the Cardinal-RPC envelopes of CardSecMult from the envelopes of
+  UnifMatMult and TreeAdd thanks to Lemma 9 of the paper.
+
+  Args:
+    n: The number of shares.
+    envn_MM: The cardinal-RPC envelopes of UnifMatMult.
+    envn_TA: The cardinal-RPC envelopes of TreeAdd.
+
+  Returns:
+    The cardinal-RPC envelopes of CardSecMult.
   """
   envn = np.zeros((n + 1, n + 1, n + 1))
   for j in range (n + 1) :
@@ -770,18 +805,24 @@ def compute_envn (n, envn_MM, envn_TA) :
         envn[ix,iy,j] = min(pr, 1)
   return envn
     
-#********************** RPC-threshold from cardinal-RPC **********************
+
+################################################################################
+####################### RPC-threshold from cardinal-RPC ########################
+
 def compute_RPC_threshold (n, envn, t) :
   """
   Compute the RPC-threshold security from the cardinal-RPC envelopes.
   It consists to compute ,for each output shares leaked cardinality j, the 
   probability that we require at least more than t shares of one secret input.
-  
-  :param n: The number of shares.
-  :param envn: The envelopes of the cardinal-RPC security of the gadget 
-               (multiplication gadget here)
-  :param t: The threshold t of the threshold-RPC security.
-  :return: Advantage ε of the threshold-RPC security. 
+
+  Args:
+    n: The number of shares.
+    envn: The envelopes of the cardinal-RPC security of the gadget 
+      (multiplication gadget here)
+    t: The threshold t of the threshold-RPC security.
+
+  Returns:
+    Advantage ε of the threshold-RPC security. 
   """
   eps = 0
   for j in range (t + 1) :
@@ -795,17 +836,23 @@ def compute_RPC_threshold (n, envn, t) :
       eps = smj    
   return eps  
 
-#********************** RPS from cardinal-RPC **********************
+################################################################################
+########################## RPS from cardinal-RPC ###############################
+
 def compute_RPM_threshold (n, envn) :
   """
   Compute the RP security from the cardinal-RPC envelopes.
-  It consists to compute, when there is no output shares leaked (i.e. j = 0), 
-  the probability that we require all the shares of at least one secret input.
-  
-  :param n: The number of shares.
-  :param envn: The envelopes of the cardinal-RPC security of the gadget 
-               (multiplication gadget here)
-  :return: Advantage ε of the RP security. 
+
+  Computes, when there is no output shares leaked (i.e., j = 0), the probability
+  that we require all the shares of at least one secret input.
+
+  Args:
+    n: The number of shares.
+    envn: The envelopes of the cardinal-RPC security of the gadget
+      (multiplication gadget here).
+
+  Returns:
+    Advantage ε of the RP security.
   """
   eps = 0 
   j = 0
@@ -819,110 +866,57 @@ def compute_RPM_threshold (n, envn) :
   return eps 
 
 
-def compute_envn_mult (n,p, gamma_l, gamma_TA) :
+def compute_envn_mult (n,p, gamma_l, gamma_TA, cores) :
   """
   Compute the Cardinal-RPC envelopes of CardSecMult.
-  :param n: The number of shares.
-  :param p: The leakage rate in [0,1].
-  :param gamma_l: The list of gamma used for the refresh gadget RPRefresh in 
-                  UnifMatMult.
-  :param gamma_TA: The gamma used for the refresh gadget RPRefresh in 
-                   BasicTreeAdd.
-  :return: The Cardinal-RPC envelopes of CardSecMult.
+
+  Args:
+    n: The number of shares.
+    p: The leakage rate in [0,1].
+    gamma_l: The list of gamma used for the refresh gadget RPRefresh in
+      UnifMatMult.
+    gamma_TA: The gamma used for the refresh gadget RPRefresh in
+      TreeAdd.
+    cores : Number of cores.
+
+  Returns:
+    The Cardinal-RPC envelopes of CardSecMult.
   """
-  env_MM = compute_envn_MM(n, n, p, gamma_l)
-  envn_TA = compute_envn_TA(n, n, p, gamma_TA)
+  env_MM = compute_envn_MM(n, n, p, gamma_l,  cores)
+  envn_TA = compute_envn_TA(n, n, p, gamma_TA, cores)
   envn = compute_envn (n, env_MM, envn_TA)
   for file in glob.glob("*.npy"):
     os.remove(file)
   return envn
   
-  
-#********************** Main **********************
+################################################################################  
+####################### Determination Gamma Plateau ############################
 
-def main() :
-  p = 2**-10
-  gamma_l = [0, 0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 22, 24, 26, 28, 30, 32, 35, 37, 40]
-  n = 10
-  #gamma = 19  
+def find_plateau_RPM(n, p, start_nb_iter, cores) :
+  """
+  Find the number of iteration 'optimal' used by the multiplication gadget to 
+  reach the 'plateau' (see Figure 7 of the full paper and explanations).
 
-  envn =  compute_envn_mult(n, p, gamma_l, gamma_l[n])
-  eps_RPM_threshold = compute_RPM_threshold(n, envn)
-  print("log_2(eps) = ", log(eps_RPM_threshold, 2))
+  Args:
+    n: The number of shares.
+    p: The leakage rate in [0, 1].
+    start_nb_iter: The first number of iteration in the refresh that we 
+    evaluate. Increasing by one every time until reach the 'Plateau'.
+    cores : Number of cores.
 
-  
-#Subsection 4.3
-def compute_graph () :
-  #p = 2**-20
-  #gamma_l = [0, 0, 2, 8, 12, 16, 19, 23, 27, 30, 34, 37, 40, 44, 48, 54, 55, 61]  
-  
-  p = 2**-10
-  gamma_l = [0, 0, 2, 6, 8, 10, 13, 15, 18, 19, 23, 28, 28, 33, 38, 38, 43, 48, 48, 53]
-  
-  #p = 2**-15
-  #gamma_l = [0, 0, 2, 7, 10, 12, 15, 18, 21, 24, 28, 29, 33, 38, 38, 43, 48, 48, 53]
-  eps = []
-  eps_JMB24 = []
-  eps_BFO23 = []
-  n_values = []
-  
-  for n in range (2, 19) :
-    print("n = ", n)
-    n_values.append(n)
-  
-    envn =  compute_envn_mult(n, p, gamma_l, gamma_l[n])
-      
-    eps_RPM_threshold = compute_RPM_threshold(n, envn)
-    print("log_2(eps) = ", log(eps_RPM_threshold, 2))
-    print()
-    eps.append(eps_RPM_threshold)
-    eps_JMB24.append((2 * p)**(0.3 * n)) 
-    eps_BFO23.append((1 - (1 - p)**(8*n) + 1 - (1 - (3*p)**(0.5))**(n - 1))**n)
-  
-  plt.title ("Security (p, ε)-RPS of multiplications,p = 2^"+str(int(log(p,2))))
-  plt.xlabel("Number of shares n")
-  plt.ylabel("RPM (p, ε)")
-  plt.yscale('log', base=2)
-  plt.gca().invert_yaxis()
-  plt.grid(True)
-  
-  plt.plot(n_values, eps, color ="red", marker = 'x', linestyle = '', label="CardSecMult-Unif-OPTI")
-  plt.plot(n_values, eps_JMB24, color ="purple", marker = 'x', linestyle = '', label="JMB24")
-  plt.plot(n_values, eps_BFO23, color ="blue", marker = 'x', linestyle = '', label="BFO23")
-  plt.legend()
-  plt.savefig("n_graph_p" + str(log(p, 2)) + ".png")
-  plt.close()
-
-#Subsection 4.3 
-def find_plateau_RPM(n, p, start_nb_iter) :
+  Returns:
+    The number of iteration 'optimal'.
+  """
   nb_iter = start_nb_iter
   eps_log = 0
   thr = 0.05
   
-  #while True :
-  
-  #  l_nb_iter = [nb_iter for _ in range (n + 1)]
-  #  l_nb_iter[0] = 0
-  #  l_nb_iter[1] = 0
-    
-    
-  #  envn = compute_envn_mult (n,p, l_nb_iter, nb_iter)
-  #  eps_RPM_threshold = compute_RPM_threshold(n,envn)
-      
-  #  if (np.abs(log(eps_RPM_threshold, 2) - eps_log) < thr) :
-  #    break
-      
-  #  eps_log = log(eps_RPM_threshold, 2) 
-  #  nb_iter += 5
-  
-  #nb_iter -= 10
-  #nb_iter = max(0, nb_iter)
   while True :
     l_nb_iter = [nb_iter for _ in range (n + 1)]
     l_nb_iter[0] = 0
     l_nb_iter[1] = 0
     
-    envn = compute_envn_mult (n,p, l_nb_iter, nb_iter)
+    envn = compute_envn_mult (n,p, l_nb_iter, nb_iter, cores)
     eps_RPM_threshold = compute_RPM_threshold(n,envn)
     
     if (np.abs(log(eps_RPM_threshold, 2) - eps_log) < thr) :
@@ -933,8 +927,27 @@ def find_plateau_RPM(n, p, start_nb_iter) :
  
   return nb_iter
 
-#Table 2 - Subsection 4.3
-def find_plateau_RPM_n (p_values, lim_n) : 
+
+def find_plateau_RPM_n (p_values, lim_n, cores) : 
+  """
+  For each leakage rate in ``p_values``, compute a list of the optimal number of 
+  iterations 'optimal' used by the refresh gadget according to the number of 
+  shares ``n``, until ``n`` reach the threshold ``n_lim``.
+  
+  Results are cached to
+  ``./results/Plateau/plateau_gamma_n_p{p}_limn{lim_n}.npy`` if present, and
+  loaded on subsequent runs.
+
+  Args:
+    p_values (list[float]): Leakage rates to evaluate.
+    lim_n (int): Exclusive upper bound for ``n``; evaluation runs for
+      ``n = 2, 3, …, lim_n - 1``.
+    cores (int): Number of cores.
+
+  Returns:
+    One list per ``p`` containing the 'optimal' iteration counts
+    indexed by ``n``.
+  """
   gamma_n_p = []
   for i in range (len(p_values)) :
     p = p_values[i]
@@ -948,8 +961,7 @@ def find_plateau_RPM_n (p_values, lim_n) :
     else :
       gamma = 2
       for n in range (2, lim_n) :
-        print("n = ", n)
-        gamma = find_plateau_RPM(n, p, max(2, gamma))
+        gamma = find_plateau_RPM(n, p, max(2, gamma), cores)
         gamma_n.append(gamma)
       
       np.save(str_gamma_n, gamma_n)
@@ -957,14 +969,4 @@ def find_plateau_RPM_n (p_values, lim_n) :
     gamma_n_p.append(gamma_n)
   return gamma_n_p
 
-
-    
-
-if __name__ == "__main__":
-  print("main")
-  main()
-  #compute_graph()
-  #find_plateau_RPM_n(2**-10)
-  #find_plateau_RPM_n(2**-15)
-  #find_plateau_RPM_n(2**-20)
 

@@ -31,58 +31,91 @@ optimize_gamma_sb, optimize_gamma_l_sb, compare_cRPC_tRPC_AES)
 from complexity import (comp_AES_enc, comp_AES_enc_JMB24, comp_AES_enc_bfo23,
                         graph_complexity, comp_mult, comp_mult_JMB24, 
                         comp_mult_bfo23, nbRandBits)
-from mult_4card import (compute_envn_mult_4card, compute_RPC_threshold, 
-                        compute_graph)
+from mult_4card import (compute_envn_mult_4card, compute_graph)
 from mult_uni_4card import cardinal_rpc_mult_uni_envelopes
 from mult_gen import (find_plateau_RPM_n, compute_envn_mult, 
-                      compute_RPM_threshold)
+                      compute_RPM_threshold, compute_RPC_threshold)
 from butterfly_network import compare_security_stage1, compare_security_stage2
 
 
 ################################# Functions ####################################
 
 
-"""  
-Function to obtain graph of Figure 4.
-:param p_values: List of probability leakage rates.
-:n_lim: A threshold value of number of shares n.
-:return : A graph for each probability leakages rates of the advantage of the 
-Threshold RPC security for different versions of the stage 1 of the butterfly 
-network, according to the number of shares n until a threshold |n_lim|.
-"""
 def graph_bnet_st1(p_values, n_lim):
+  """
+  Generate graphs corresponding to Figure 4 of the full paper.
+
+  For each probability leakage rate in `p_values`, compute and plot the 
+  advantage of the Threshold RPC security for different versions of stage 1 of 
+  the butterfly network, according to the number of shares `n` up to a threshold
+  `n_lim`.
+
+  Args:
+    p_values (list[float]): List of probability leakage rates.
+    n_lim (int): Threshold value of the number of shares n.
+
+  Returns:
+    None: Saves the generated graphs.
+  """  
   for p in p_values :
     logp = int(log(p, 2))
     compare_security_stage1(logp, n_lim)
 
-"""  
-Function to obtain graph of Figure 16.
-:param p_values: List of probability leakage rates.
-:n_lim: A threshold value of number of shares n.
-:return : A graph for each probability leakages rates of the advantage of the 
-Threshold RPC security for different versions of the stage 2 of the butterfly 
-network, according to the number of shares n until a threshold |n_lim|.
-"""
-def graph_bnet_st2(p_values, n_lim):
+def graph_bnet_st2(p_values, n_lim, cores):
+  """
+  Generate graphs corresponding to Figure 16 of the full paper.
+
+  For each probability leakage rate in `p_values`, compute and plot the
+  advantage of the Threshold RPC security for different versions of stage 2 of 
+  the butterfly network, according to the number of shares `n` up to a threshold 
+  `n_lim`.
+
+  Args:
+    p_values (list[float]): List of probability leakage rates.
+    n_lim (int): Threshold value of the number of shares n.
+    cores (int): Number of cores.
+
+  Returns:
+    None: Saves the generated graphs.
+  """
   for p in p_values :
     logp = int(log(p, 2))
-    compare_security_stage2(logp, n_lim)  
+    compare_security_stage2(logp, n_lim, cores)  
 
 
-"""
-Function to obtain graph of Figure 7.
-:param n_values: List of number of shares.
-:param p_values: List of probability leakage rates.
-:lim_gamma: A threshold on the gamma values used in the refresh gadget.
-:return : A graph, for each probability leakage rates p in |p_values|, on the 
-Threshold RPC obtained by the multiplication gadget according to the number of 
-gamma used and the number of shares n.
-"""
-def NRSM_4card_graph (n_values, p_values, lim_gamma) :
+def NRSM_4card_graph (n_values, p_values, lim_gamma, cores) :
+  """
+  Generate graphs corresponding to Figure 7 of the full paper.
+
+  For each probability leakage rate ``p`` in ``p_values``, compute and plot the
+  Threshold RPC obtained by the multiplication gadget as a function of the
+  number of random values ``gamma`` used and the number of shares ``n``.
+  Intermediate results are cached as ``.npy`` files and reused if available 
+  during execution.
+
+  Args:
+    n_values (list[int]): List of numbers of shares ``n``.
+    p_values (list[float]): List of probability leakage rates ``p``.
+    lim_gamma (int): Upper bound (exclusive) on the number of random values
+    ``gamma`` considered (i.e., we evaluate ``gamma`` in ``range(lim_gamma)``).
+    cores (int) : Number of cores to be used.
+
+  Returns:
+    None: Saves one PDF per p in the current directory named 
+    ``NRSM_4card_ThresholdRPC_p{logp}.pdf`` and reuses/saves cached ``.npy`` 
+    files under ``./results/gamma_func_4card/``.
+
+  Notes:
+    If the cached ``.npy`` files exist for a given (n, p, lim_gamma), they are 
+    reused. This function assumes the following helper functions are available:
+    ``compute_envn_mult_4card``, ``cardinal_rpc_mult_uni_envelopes``,
+    ``compute_RPC_threshold``, and ``compute_graph``.
+  """
   list_gamma = [i for i in range(lim_gamma)]
   for p in p_values :   
     logp = int(log(p, 2))
     
+    #Configuration of the graph for each p.
     fig, ax = plt.subplots(figsize=(5.4, 4), dpi = 1200)  
     ax.set_xlabel(r"Number of random values $\gamma$")
     ax.set_ylabel("RPC (n,t,p)")
@@ -92,9 +125,10 @@ def NRSM_4card_graph (n_values, p_values, lim_gamma) :
     ax.grid(True)
     
     for n in n_values :
-      print("n = ", n)
       t = n // 2
 
+      #Construction of the path to test if the results have already been 
+      #computed.
       path = "./results/gamma_func_4card/"
       filename_asym = (path + "Asym_4card_eps_n" + str(n) + "_p"+str(logp) + 
                        "_limgamma" + str(lim_gamma) + ".npy")
@@ -114,16 +148,17 @@ def NRSM_4card_graph (n_values, p_values, lim_gamma) :
         eps_sym_unif_4card = np.load(filename_sym_unif)
       
       else :
+        #Computation of the enveloppes of the multiplication, used with 4 
+        # outputs for MatMult. The results is saved in the |path|.
         for gamma in range (lim_gamma) :
-          print("gamma = ", gamma)
           l_gamma = [gamma] * (n + 1) 
     
 
           #Computation of the different enveloppes.
-          env_asym_4card = compute_envn_mult_4card(n, p, gamma, "Asym")
-          env_sym_4card = compute_envn_mult_4card(n, p, gamma, "Sym")
+          env_asym_4card = compute_envn_mult_4card(n, p, gamma, "Asym", cores)
+          env_sym_4card = compute_envn_mult_4card(n, p, gamma, "Sym", cores)
           env_sym_unif_4card = cardinal_rpc_mult_uni_envelopes(n, p, l_gamma, 
-                                                         gamma, "Sym")
+                                                         gamma, "Sym", cores)
     
           #Obtaining advantage of the threshold RPC from the enveloppes.
           eps_asym_4card.append(min(1, 
@@ -149,26 +184,38 @@ def NRSM_4card_graph (n_values, p_values, lim_gamma) :
                 bbox_inches="tight")  
     plt.close(fig)
 
-"""
-Function to obtain graph of Figure 9.
-:param p_values: List of probability leakage rates.
-:param l_sec_level: List of security levels.
-:return : A graph, for each leakage rates in |p_values|, of the complexity (in 
-random, addition and multiplication) required to reach the different 
-security level of the list |l_sec_lev| of the Random probing security of the 
-multiplication gadget.
-"""
-def histo_mult_complexity (p_values, l_sec_level) :
+def histo_mult_complexity (p_values, l_sec_level, cores) :
+  """
+  Generate the complexity bar charts of the multiplication gadget for Figure 9 
+  of the full paper.
+
+  For each leakage rate ``p`` in ``p_values``, compute the complexity (randoms,
+  additions, multiplications, and random *bits*) required to reach each target
+  security level in ``l_sec_level`` for the Random Probing (RP) security of the
+  multiplication gadget. Also computes the complexities for JMB24 and BFO23
+  reference gadgets for comparison. Intermediate results are cached as ``.npy``
+  files under ``./results/mult/``.
+
+  Args:
+    p_values (list[float]): Probability leakage rates.
+    l_sec_level (list[float]): Target security levels (epsilon thresholds).
+    cores (int): Number of cores.
+
+  Returns:
+    None: Saves one PDF per p in the current directory named 
+    ``histo_p{logp}.pdf``.
+  """
+
   #If you want, you can go further in the range of n, but it will take more time.
   lim_n = 19
 
   #List of gamma values considered "optimal" for the refresh gadget (see Section 
   #5.3 of the paper, paragraph "Fine-tuning of the RPRefresh gadget"), valid for 
   #all leakage rates p.
-  gamma_n = find_plateau_RPM_n(p_values, lim_n)
+  gamma_n = find_plateau_RPM_n(p_values, lim_n, cores)
   for p in p_values :
     i = p_values.index(p)
-    l_gamma_mult = gamma_n[i].astype(int)
+    l_gamma_mult = np.asarray(gamma_n[i], dtype=int)
     logp = int(log(p, 2))
 
     #Our complexity in Randoms, additions, multiplications to reach the desired 
@@ -218,7 +265,7 @@ def histo_mult_complexity (p_values, l_sec_level) :
         else :
           ######################################################################
           ################## Computation of the enveloppes #####################
-          env_mult = compute_envn_mult(n, p, l_gamma_mult, l_gamma_mult[n])
+          env_mult = compute_envn_mult(n, p, l_gamma_mult, l_gamma_mult[n], cores)
           np.save(filename_mult, env_mult)
         
         ########################################################################
@@ -232,11 +279,11 @@ def histo_mult_complexity (p_values, l_sec_level) :
           filename_mult = (path + "env_mult_n"+str(n) + "_p" + str(logp) + 
                            "_lgamma" + str(l_gamma_mult) + ".npy")
           t = n // 2
-          env_mult = compute_envn_mult(n, p, l_gamma_mult, l_gamma_mult[n])
+          env_mult = compute_envn_mult(n, p, l_gamma_mult, l_gamma_mult[n],cores)
           if (os.path.isfile(filename_mult)) :
             env_mult = np.load(filename_mult)
           else :
-            env_mult = compute_envn_mult(n, p, l_gamma_mult, l_gamma_mult[n])
+            env_mult = compute_envn_mult(n, p, l_gamma_mult, l_gamma_mult[n], cores)
             np.save(filename_mult, env_mult)
           eps = compute_RPM_threshold(n, env_mult)        
         np.save(filename, [n, eps])
@@ -299,21 +346,26 @@ def histo_mult_complexity (p_values, l_sec_level) :
                      security)  
 
 
+def histo_AES_complexity (p_values, l_sec_level, cores) :
+  """
+  Generate the complexity bar charts of the masked AES for 
+  Figure 14 (AES Threshold RPC) of the full paper.
 
+  For each leakage rate ``p`` in ``p_values``, this computes the complexity
+  (randoms, additions, multiplications, and random *bytes*) required to reach
+  each target security level in ``l_sec_level`` for our AES (Threshold RPC)
+  construction, and for the JMB24 and BFO23 reference designs. Intermediate
+  parameters for our version are cached under ``./results/AES/``.
 
+  Args:
+    p_values (list[float]): Probability leakage rates.
+    l_sec_level (list[float]): Target security levels (epsilon thresholds).
+    cores (int) : Number of cores.
 
-
-
-"""
-Function to obtain graph of Figure 14.
-:param p_values: List of probability leakage rates.
-:param l_sec_level: List of security levels.
-:return : A graph, for each leakage rates in |p_values|, of the complexity (in 
-random, addition and multiplication) required to reach the different 
-security level of the list |l_sec_lev| of the Threshold RPC security of the 
-AES for our version, JMB24's version and BFO23's version.
-"""
-def histo_AES_complexity (p_values, l_sec_level) :
+  Returns:
+    None: Saves one PDF per p in the current directory named 
+    ``AES_histo_p{logp}.pdf``.
+  """
   for p in p_values :
     logp = int(log(p, 2))  
   
@@ -371,32 +423,38 @@ def histo_AES_complexity (p_values, l_sec_level) :
 
       else :    
         eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, 
-                              gamma_ark, t)
+                              gamma_ark, t, cores)
     
         while (eps > sec_level) :
           n += 1
           t = n // 2
           l_gamma_sb.append(500)
           eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, 
-                                gamma_ark, t)
+                                gamma_ark, t, cores)
       
-        eps, gamma_ark = optimize_gamma_ark(n,p, eps, 0.1)
-        eps, gamma_mc = optimize_gamma_mc (n, p, eps, 0.1, gamma_ark)
-        eps, gamma_sb = optimize_gamma_sb(n, p, eps, 0.1, gamma_ark, gamma_mc)
+        #Optimization of the parameter to upgrade the tradeoff 
+        #complexity/security. Concretely, we try to reduce the number of `gamma`
+        #used in each block without reducing the security of the overall scheme
+        #more than a threshold (0.1 here).  
+        eps, gamma_ark = optimize_gamma_ark(n,p, eps, 0.1, cores)
+        eps, gamma_mc = optimize_gamma_mc (n, p, eps, 0.1, gamma_ark, cores)
+        eps, gamma_sb = optimize_gamma_sb(n, p, eps, 0.1, gamma_ark, gamma_mc, 
+                                          cores)
         eps, l_gamma_sb = optimize_gamma_l_sb(n, p, eps, 0.1, gamma_ark, 
-                                              gamma_mc, gamma_sb)
-      
+                                              gamma_mc, gamma_sb, cores)
+
+        #Saves the results to further reutilisation.
         params = [n, gamma_ark, gamma_mc, gamma_sb, eps]
         np.save(str_params, params)
         np.save(str_l_g_sb, l_gamma_sb)
 
       n = int(n)
-      print("n = ", n)
-      print("gamma_ark = ", gamma_ark)
-      print("gamma_mc = ", gamma_mc)
-      print("gamma_sb = ", gamma_sb)
-      print("l_gamma_sb = ", l_gamma_sb)
-      print("log(eps, 2) = ", log(eps, 2))
+      #print("n = ", n)
+      #print("gamma_ark = ", gamma_ark)
+      #print("gamma_mc = ", gamma_mc)
+      #print("gamma_sb = ", gamma_sb)
+      #print("l_gamma_sb = ", l_gamma_sb)
+      #print("log(eps, 2) = ", log(eps, 2))
 
       ##########################################################################
       ######################## Complexity computation ##########################
@@ -460,10 +518,35 @@ def histo_AES_complexity (p_values, l_sec_level) :
                      "AES_histo_p" +str(logp) +".pdf", security)
   
 
+def complexity_cRPCvstRPC (n, p, thr, cores) :
+  """
+  Plot complexity comparison between threshold RPC (tRPC) and cardinal RPC 
+  (cRPC) at AES block level.
 
-def complexity_cRPCvstRPC (n, p, thr) :
+  This reproduces the illustrative graphs supporting the statement:
+  at ``p = 2^{-20}``, the block-level **cardinal RPC** compiler already exceeds the 64-bit
+  target (with exactly ``ε = 2^{-67}``) with ``n = 8`` shares, whereas directly combining
+  the **threshold RPC** advantages (copies included) would only yield ``ε = 2^{-61}``
+  under the same ``(p, n)`` setting.
+
+  Although this figure does **not appear** in the paper, it was generated to 
+  support the *last sentence of the main body* of our article, right before 
+  the Appendix section.
+
+  Args:
+    n (int): Number of shares.
+    p (float): Probability leakage rate.
+    thr (float): Threshold parameter for the comparison (passed to 
+    ``compare_cRPC_tRPC_AES``).
+    cores (int) : Number of cores.
+
+  Returns:
+    None: Saves a 3-panel bar chart PDF comparing Randoms, Additions, and 
+    Multiplications.
+  """
+
   logp = int(log(p, 2))
-  res_tuple = compare_cRPC_tRPC_AES(n, p, thr)
+  res_tuple = compare_cRPC_tRPC_AES(n, p, thr, cores)
   
   eps_tRPC = res_tuple[0]
   gamma = res_tuple[1]
@@ -493,34 +576,20 @@ def complexity_cRPCvstRPC (n, p, thr) :
             color = 'lightgreen', width = w)
   ax[0].bar(x2, cr_crpc, width = w, label = "cRPC", color = 'C0')
   ax[0].bar(x2, crb_crpc, bottom  = cr_crpc, width = w, label = "cRPC - rb", 
-            color = 'skyblue')
-  
-  
+            color = 'skyblue') 
   ax[0].set_ylabel("Number of randoms")
   ax[0].set_xlabel("Security Level")
   ax[0].set_title(r'\#Rand')
   ax[0].legend(fontsize = "x-small")
-
   ax[0].set_xticks([x1, x2]) 
-
-  #ax[0].set_yscale('log', base=2) 
-
-  #ax[0].set_xticks(x) 
-  #ax[0].set_xticklabels(security)
 
   ax[1].bar(x1, ca_trpc, width = w, label = "tRPC", color = 'C2')  
   ax[1].bar(x2, ca_crpc, label = "cRPC", width = w, color = 'C0')
   ax[1].set_ylabel("Number of additions")
   ax[1].set_xlabel("Security Level")
   ax[1].set_title(r'\#Add')
-  ax[1].legend(fontsize = "small")  
-  
+  ax[1].legend(fontsize = "small")    
   ax[1].set_xticks([x1, x2]) 
-
-  #ax[1].set_yscale('log', base=2) 
-  #ax[1].set_xticks(x)  
-  #ax[1].set_xticklabels(security)
-   
 
   ax[2].bar(x1, cm_trpc, width = w, label = "tRPC", color = 'C2')  
   ax[2].bar(x2, cm_crpc, label = "cRPC", width = w, color='C0')
@@ -528,10 +597,7 @@ def complexity_cRPCvstRPC (n, p, thr) :
   ax[2].set_xlabel("Security Level")
   ax[2].set_title(r'\#Mult')
   ax[2].legend(fontsize = "small")  
-  
-  #ax[2].set_yscale('log', base=2) 
   ax[2].set_xticks([x1, x2]) 
-  #ax[2].set_xticklabels(security)  
   
   fig.tight_layout()
   fig.savefig("cRPCvstRPC_n"+str(n)+"_p"+str(logp)+".pdf", bbox_inches="tight")
@@ -541,32 +607,34 @@ def complexity_cRPCvstRPC (n, p, thr) :
 
 if __name__ == "__main__" :
   
+  #Number of cores to be used, change according to your ressources.
+  cores = 16
+
   #Figure 4
   graph_bnet_st1([2**-3, 2**-5, 2**-10], 5)
 
   #Figure 16
-  #graph_bnet_st2([2**-3, 2**-5, 2**-10], 11)
+  graph_bnet_st2([2**-3, 2**-5, 2**-10], 11, cores)
 
   #Figure 7 
-  NRSM_4card_graph ([4, 8], [2**-6, 2**-12], 41)
+  NRSM_4card_graph ([4, 8], [2**-6, 2**-12], 41, cores)
   
   #Figure 8
-  #gamma_n_p = find_plateau_RPM_n([2**-10, 2**-15, 2**-20], 19)
-  #i = 0 
-  #for p in [2**-10, 2**-15, 2**-20] :
-  #  print("p = 2^"+ str(int(log(p, 2))) + ", gamma_n = " + str(gamma_n_p[i]))
-  #  i += 1
+  gamma_n_p = find_plateau_RPM_n([2**-10, 2**-15, 2**-20], 19, cores)
+  i = 0 
+  for p in [2**-10, 2**-15, 2**-20] :
+    print("p = 2^"+ str(int(log(p, 2))) + ", gamma_n = " + str(gamma_n_p[i]))
+    i += 1
 
   #Figure 9 
-  histo_mult_complexity ([2**-10], [2**-64, 2**-80])
-  histo_mult_complexity([2**-15, 2**-20], [2**-64, 2**-80, 2**-128])
+  histo_mult_complexity ([2**-10], [2**-64, 2**-80], cores)
+  histo_mult_complexity([2**-15, 2**-20], [2**-64, 2**-80, 2**-128], cores)
 
   #Figure 14 
-  histo_AES_complexity([2**-20], [2**-64, 2**-80, 2**-128])
-  histo_AES_complexity ([2**-16], [2**-64, 2**-80])
+  histo_AES_complexity([2**-20], [2**-64, 2**-80, 2**-128], cores)
+  histo_AES_complexity ([2**-16], [2**-64, 2**-80], cores)
 
-  #Last paragraph of the core paper.
-  #complexity_cRPCvstRPC (8, 2**-20, 0.1)
-
+  #Last sentence of the main body.
+  complexity_cRPCvstRPC (8, 2**-20, 0.1, cores)
 
 

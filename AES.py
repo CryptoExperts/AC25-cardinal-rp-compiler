@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
 
+# This file compute the random probing security of our masked AES encryption, 
+#  build with our compiler described in Section 6 of the paper. In addition,
+#  it enables to optimize automatically the gamma taken (i.e. the number of 
+#  iteration in RPRefresh) for each block Subbytes, AddRoundKey and 
+#  MixColumns.
+  
+
+
+################################################################################
+################################# Packages #####################################
+
 import matplotlib.pyplot as plt
 from scipy.special import comb
 from math import log
@@ -16,6 +27,7 @@ from mult_gen import compute_envn_mult, compute_RPC_threshold
 
 import time
 
+################################################################################
 ################################  Utils ########################################
 
 def env_cadd (n, p, env_ref) :
@@ -40,7 +52,7 @@ def precomp_hypergeom(N) :
   
   return precomp
   
-def proceed_para (n, target_file, param, nb_param_env) :
+def proceed_para (n, target_file, param, nb_param_env, cores) :
   processes = []
   queue = Queue()
   param.append(0)
@@ -67,8 +79,7 @@ def proceed_para (n, target_file, param, nb_param_env) :
       param[-3] = ind1
       param[-2] = ind2     
       processes.append(Process(target=target_file, args=tuple(param)))
-  #Don't know what to make.
-  cores = 2 * 192
+
   nb_process = 0
   while (nb_process < len(processes)) :
     lim = min(cores + nb_process, len(processes))
@@ -390,7 +401,7 @@ def env_copy_simple (n, p, env_ref, hypergeom) :
         env[tin, tout1, tout2] = min(1, env[tin, tout1, tout2])
   return env
 
-def env_affine(n, p, env_ref, envn_sq, envn_add, envn_cmult, envn_cadd, hypergeom) : 
+def env_affine(n, p, env_ref, envn_sq, envn_add, envn_cmult, envn_cadd, hypergeom, cores) : 
   
   env_copy = env_copy_simple(n, p, env_ref, hypergeom)
   envn_perm = env_perm(n, hypergeom)
@@ -400,12 +411,12 @@ def env_affine(n, p, env_ref, envn_sq, envn_add, envn_cmult, envn_cadd, hypergeo
   envn_prec1 = aff_prec1(n, p, envn_prec11)
 
   envn_prec2 = aff_prec2 (n, envn_sq, envn_add)
-  envn_prec3 = proceed_para(n, aff_prec_compo_para,[n, envn_prec1, envn_prec2, envn_prec1], 3)
-  envn_prec4 = proceed_para(n, aff_prec_compo_para, [n, envn_prec3, envn_prec2, env_copy], 3)
-  envn_prec5 = proceed_para(n, aff_prec_compo_para, [n, envn_prec4, envn_prec2, envn_prec1], 3)
-  envn_prec6 = proceed_para(n, aff_prec_compo_para, [n, envn_prec5, envn_prec2, envn_prec1], 3)
-  envn_prec7 = proceed_para(n, aff_prec_compo_para, [n, envn_prec6, envn_prec2, envn_prec1], 3)
-  envn_prec8 = proceed_para(n, aff_prec_compo_para, [n, envn_prec7, envn_prec2, envn_perm], 3)  
+  envn_prec3 = proceed_para(n, aff_prec_compo_para,[n, envn_prec1, envn_prec2, envn_prec1], 3, cores)
+  envn_prec4 = proceed_para(n, aff_prec_compo_para, [n, envn_prec3, envn_prec2, env_copy], 3, cores)
+  envn_prec5 = proceed_para(n, aff_prec_compo_para, [n, envn_prec4, envn_prec2, envn_prec1], 3, cores)
+  envn_prec6 = proceed_para(n, aff_prec_compo_para, [n, envn_prec5, envn_prec2, envn_prec1], 3, cores)
+  envn_prec7 = proceed_para(n, aff_prec_compo_para, [n, envn_prec6, envn_prec2, envn_prec1], 3, cores)
+  envn_prec8 = proceed_para(n, aff_prec_compo_para, [n, envn_prec7, envn_prec2, envn_perm], 3, cores)  
   
   envn_prec3 = aff_prec3(n, envn_cmult, envn_prec2)
   env = aff_final_env(n , envn_prec8, envn_prec3, envn_cadd)
@@ -706,7 +717,7 @@ def mc_prec11_para (n, name_prec10, name_prec7, i1, i2, queue) :
   return
 
 
-def env_start_mixc (n, p, t, env_add, env_cmult, hypergeom, pgref, env_sb) :
+def env_start_mixc (n, p, t, env_add, env_cmult, hypergeom, pgref, env_sb, cores) :
   envhypergeom = mc_prechypergeom(n, hypergeom)
   envhypergeom = full_env_perm(n, p, envhypergeom)
   #envhypergeom = mc_sb_hypergeom(n, envhypergeom, env_sb)
@@ -720,7 +731,7 @@ def env_start_mixc (n, p, t, env_add, env_cmult, hypergeom, pgref, env_sb) :
   shared_arr = np.ndarray(prec3.shape, dtype=prec3.dtype, buffer=shm.buf)
   np.copyto(shared_arr, prec3)
   
-  prec4 = proceed_para(n, mc_prec4_para, [n, envhypergeom_ref, shm.name], 6)
+  prec4 = proceed_para(n, mc_prec4_para, [n, envhypergeom_ref, shm.name], 6, cores)
   shm.close()
   shm.unlink()
   #prec4 = mc_prec4(n, envhypergeom_ref, prec3)
@@ -729,7 +740,7 @@ def env_start_mixc (n, p, t, env_add, env_cmult, hypergeom, pgref, env_sb) :
   shared_arr = np.ndarray(prec4.shape, dtype=prec4.dtype, buffer=shm.buf)
   np.copyto(shared_arr, prec4)
 
-  prec5 = proceed_para(n, mc_prec5_para, [n, shm.name, env_add], 5)
+  prec5 = proceed_para(n, mc_prec5_para, [n, shm.name, env_add], 5, cores)
   
   shm.close()
   shm.unlink()
@@ -739,7 +750,7 @@ def env_start_mixc (n, p, t, env_add, env_cmult, hypergeom, pgref, env_sb) :
   shared_arr = np.ndarray(prec5.shape, dtype=prec5.dtype, buffer=shm.buf)
   np.copyto(shared_arr, prec5)
 
-  prec6 = proceed_para(n, mc_prec6_para, [n, shm.name, env_add], 6)
+  prec6 = proceed_para(n, mc_prec6_para, [n, shm.name, env_add], 6, cores)
   
   shm.close()
   shm.unlink()
@@ -750,7 +761,7 @@ def env_start_mixc (n, p, t, env_add, env_cmult, hypergeom, pgref, env_sb) :
   shared_arr = np.ndarray(prec6.shape, dtype=prec6.dtype, buffer=shm.buf)
   np.copyto(shared_arr, prec6)
 
-  prec7 = proceed_para(n, mc_prec7_para, [n, shm.name, envhypergeom_ref], 5)
+  prec7 = proceed_para(n, mc_prec7_para, [n, shm.name, envhypergeom_ref], 5, cores)
 
   shm.close()
   shm.unlink()
@@ -769,7 +780,7 @@ def env_start_mixc (n, p, t, env_add, env_cmult, hypergeom, pgref, env_sb) :
   shared_arr2 = np.ndarray(prec7.shape, dtype=prec7.dtype, buffer=shm2.buf)
   np.copyto(shared_arr2, prec7)
 
-  prec11 = proceed_para(n, mc_prec11_para, [n, shm.name, shm2.name], 6)
+  prec11 = proceed_para(n, mc_prec11_para, [n, shm.name, shm2.name], 6, cores)
   
   shm2.close()
   shm2.unlink()
@@ -953,10 +964,11 @@ Input :
   -gamma_mc : Gamma used for the MixColumns part.
   -gamma_ark : Gamma used for the AddRoundKey part.
   -t : Threshold for RPC notions.
+  -cores : Number of cores.
 
 Output : Advantage eps for the (t, p, eps)-threshold RPC of a full AES.
 """
-def compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, gamma_ark, t) :
+def compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, gamma_ark, t, cores) :
   hypergeom = precomp_hypergeom(n)
   
   pgref_mc = cardinal_rpc_refresh_envelope(n, p, gamma_mc)
@@ -978,14 +990,14 @@ def compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, gamma_ark, t) :
   if(os.path.isfile(str_file)) : 
     envn_mult = np.load(str_file)
   else :
-    envn_mult = compute_envn_mult(n, p, l_gamma_sb, gamma_sb)
+    envn_mult = compute_envn_mult(n, p, l_gamma_sb, gamma_sb, cores)
     np.save(str_file, envn_mult)
 
 
   #Subbytes enveloppes. 
   env_expo = env_expo_254 (n, p, envn_sq_sb, envn_mult, pgref_sb)
   env_aff = env_affine (n, p, pgref_sb, envn_sq_sb, envn_add_sb, envn_cmult_sb, 
-                        envn_cadd_sb, hypergeom)  
+                        envn_cadd_sb, hypergeom, cores)  
   env_sb = env_subbytes (n, env_expo, env_aff)
 
   #AddRoundKey + Subbytes enveloppes.
@@ -1001,7 +1013,8 @@ def compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, gamma_ark, t) :
   env_endmc_ark_sb_ark = env_endmixc_ark_sb_ark (n, envn_add_mc, env_ark_sb_ark)
   
   #MixColumns without the last addition enveloppes.
-  env_start_mc = env_start_mixc (n, p, t, envn_add_mc, envn_cmult_mc, hypergeom, pgref_mc, env_sb) 
+  env_start_mc = env_start_mixc (n, p, t, envn_add_mc, envn_cmult_mc, hypergeom, 
+                                 pgref_mc, env_sb, cores) 
 
 
 
@@ -1029,37 +1042,35 @@ def compute_RPC_threshold_copy(n, t, env_copy) :
   return eps
 
 
-
-
-def full_tRPC_AES (p, sec_lev, thr) :
+def full_tRPC_AES (p, sec_lev, thr, cores) :
   n = 2
   gamma = 500
   l_gamma_mult = [500] * n
-  eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult)
+  eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
 
   while (eps > sec_lev) :
     n += 1
     l_gamma_mult = [500] * n
-    eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult)
+    eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
 
   print("n = ", n)
-  eps, gamma = optimize_gamma_tRPC (n, p, thr, eps)
+  eps, gamma = optimize_gamma_tRPC (n, p, thr, eps, cores)
   print("gamma = ", gamma)
-  eps, l_gamma = optimize_l_gamma_mult_tRPC (n, p, thr, gamma, eps)
+  eps, l_gamma = optimize_l_gamma_mult_tRPC (n, p, thr, gamma, eps, cores)
   print("l_gamma = ", l_gamma)
   print("eps = ", log(eps, 2))
   return eps
 
-def compare_cRPC_tRPC_AES (n, p, thr) :
+def compare_cRPC_tRPC_AES (n, p, thr, cores) :
 
   ##############################################################################
   ############################# Threshold RPC ##################################
   gamma = 500
   l_gamma_mult = [500] * n
-  eps_tRPC = compute_tRPC_AES(n, p, gamma, l_gamma_mult)
+  eps_tRPC = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
   
-  eps_tRPC, gamma = optimize_gamma_tRPC (n, p, thr, eps_tRPC)
-  eps_tRPC, l_gamma = optimize_l_gamma_mult_tRPC (n, p, thr, gamma, eps_tRPC)
+  eps_tRPC, gamma = optimize_gamma_tRPC (n, p, thr, eps_tRPC, cores)
+  eps_tRPC, l_gamma = optimize_l_gamma_mult_tRPC (n, p, thr, gamma, eps_tRPC, cores)
   
   #print("gamma = ", gamma)
   #print("l_gamma = ", l_gamma)
@@ -1074,31 +1085,26 @@ def compare_cRPC_tRPC_AES (n, p, thr) :
   l_gamma_sb = [500] * n
   t = n // 2
   eps_cRPC = compute_RPC_AES(n, p, int(log(p, 2)), gamma_sb, l_gamma_sb, 
-                             gamma_mc, gamma_ark, t)
+                             gamma_mc, gamma_ark, t, cores)
 
-  eps_cRPC, gamma_ark = optimize_gamma_ark(n, p, eps_cRPC, thr)
-  eps_cRPC, gamma_mc = optimize_gamma_mc (n, p, eps_cRPC, thr, gamma_ark)
-  eps_cRPC, gamma_sb = optimize_gamma_sb(n, p, eps_cRPC, thr, gamma_ark, gamma_mc)
+  eps_cRPC, gamma_ark = optimize_gamma_ark(n, p, eps_cRPC, thr, cores)
+  eps_cRPC, gamma_mc = optimize_gamma_mc (n, p, eps_cRPC, thr, gamma_ark, cores)
+  eps_cRPC, gamma_sb = optimize_gamma_sb(n, p, eps_cRPC, thr, gamma_ark, 
+                                         gamma_mc, cores)
   eps_cRPC, l_gamma_sb = optimize_gamma_l_sb(n, p, eps_cRPC, thr, gamma_ark, 
-                                              gamma_mc, gamma_sb)
+                                              gamma_mc, gamma_sb, cores)
   
   return (eps_tRPC, gamma, l_gamma, eps_cRPC, gamma_ark, gamma_mc, gamma_sb, 
           l_gamma_sb)
 
-
-
-
-
-
-
-def optimize_gamma_tRPC (n, p, thr, eps_witness) :
+def optimize_gamma_tRPC (n, p, thr, eps_witness, cores) :
   logp = int(log(p, 2))
   l_gamma_mult = [500] * n
   t = n // 2
 
   #We start with 50.
   gamma = 50
-  eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult)
+  eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
   
   gamma1 = gamma
   eps1 = eps
@@ -1108,7 +1114,7 @@ def optimize_gamma_tRPC (n, p, thr, eps_witness) :
       eps1 = eps
       gamma1 = gamma
       gamma = gamma // 2
-      eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult)
+      eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
     if (gamma == 0) :
       if (np.abs(log(eps, 2) - log(eps_witness, 2)) < thr) :
         return eps, gamma
@@ -1119,14 +1125,14 @@ def optimize_gamma_tRPC (n, p, thr, eps_witness) :
     while (np.abs(log(eps1, 2) - log(eps_witness, 2)) >= thr) :
       eps = eps1
       gamma1 = 2 * gamma1
-      eps1 = compute_tRPC_AES(n, p, gamma1, l_gamma_mult)
+      eps1 = compute_tRPC_AES(n, p, gamma1, l_gamma_mult, cores)
     gamma = gamma1 // 2
 
   #We have gamma which is upper the threshold and gamma1 which is under 
   #the threshold, we apply dichotomy.
   while (not (gamma == gamma1) and not (gamma == (gamma1 - 1))) :
     gamma2 = (gamma + gamma1) // 2
-    eps2 = compute_tRPC_AES(n, p, gamma2, l_gamma_mult)
+    eps2 = compute_tRPC_AES(n, p, gamma2, l_gamma_mult, cores)
     if (np.abs(log(eps2, 2) - log(eps_witness, 2))< thr) :
       eps1 = eps2
       gamma1 = gamma2
@@ -1140,7 +1146,7 @@ def optimize_gamma_tRPC (n, p, thr, eps_witness) :
   if (gamma == (gamma1 - 1)):
     return eps1, gamma1
 
-def optimize_l_gamma_mult_tRPC (n, p, thr, gamma, eps_witness) : 
+def optimize_l_gamma_mult_tRPC (n, p, thr, gamma, eps_witness, cores) : 
     nbis = n // 2 + 2
     if (n%2 == 0) :
       nbis = n//2 + 1
@@ -1153,23 +1159,23 @@ def optimize_l_gamma_mult_tRPC (n, p, thr, gamma, eps_witness) :
     for i in range (2, len(l_gamma_mult)) :
       print("i = ", i)
       l_gamma_mult[i] = 0
-      eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult)
+      eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
       while (np.abs(log(eps, 2) - log(eps_witness, 2)) > thr) :
         l_gamma_mult[i] += 3
-        eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult)
+        eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
       
       if(not(l_gamma_mult[i] == 0)) :
         l_gamma_mult[i] -= 2
-        eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult)
+        eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
         while (np.abs(log(eps, 2) - log(eps_witness, 2)) > thr) :
           l_gamma_mult[i] += 1
-          eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult)
+          eps = compute_tRPC_AES(n, p, gamma, l_gamma_mult, cores)
 
       
     return eps, l_gamma_mult
 
 
-def compute_tRPC_AES (n, p, gamma, l_gamma_mult) :
+def compute_tRPC_AES (n, p, gamma, l_gamma_mult, cores) :
   t = n // 2
 
   pgref = cardinal_rpc_refresh_envelope(n, p, gamma)
@@ -1177,7 +1183,7 @@ def compute_tRPC_AES (n, p, gamma, l_gamma_mult) :
   pgcopy = cardinal_rpc_gcopy_envelope_pgref (n, p, pgref)
   pgcmult = cardinal_rpc_gcmult_envelope_pgref(n, p, pgref)
   pgcadd = env_cadd(n, p, pgref)
-  pgmult = compute_envn_mult(n, p, l_gamma_mult, gamma)
+  pgmult = compute_envn_mult(n, p, l_gamma_mult, gamma, cores)
 
 
   eps_ref = compute_RPC_threshold_inner(n, t, pgref)
@@ -1198,7 +1204,7 @@ def compute_tRPC_AES (n, p, gamma, l_gamma_mult) :
 ################################################################################
 ########################### Optimisation choice Gamma ##########################
 
-def optimize_gamma_ark (n, p, eps_witness, thr) :
+def optimize_gamma_ark (n, p, eps_witness, thr, cores) :
   logp = int(log(p, 2))
   gamma_mc = 500
   gamma_sb = 500
@@ -1209,7 +1215,7 @@ def optimize_gamma_ark (n, p, eps_witness, thr) :
   gamma_ark = 50
 
   eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, gamma_ark, 
-                        t)
+                        t, cores)
   gamma_ark1 = gamma_ark
 
   eps1 = eps
@@ -1220,7 +1226,7 @@ def optimize_gamma_ark (n, p, eps_witness, thr) :
       gamma_ark1 = gamma_ark
       gamma_ark = gamma_ark1 // 2
       eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, 
-                            gamma_ark, t)
+                            gamma_ark, t, cores)
     if (gamma_ark == 0) :
       if (np.abs(log(eps, 2) - log(eps_witness, 2)) < thr) :
         return eps, gamma_ark
@@ -1232,7 +1238,7 @@ def optimize_gamma_ark (n, p, eps_witness, thr) :
       eps = eps1
       gamma_ark1 = 2 * gamma_ark1
       eps1 = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, 
-                             gamma_ark1, t)
+                             gamma_ark1, t, cores)
     gamma_ark = gamma_ark1 // 2
 
   #We have gamma_ark which is upper the threshold and gamma_ark1 which is under 
@@ -1240,7 +1246,7 @@ def optimize_gamma_ark (n, p, eps_witness, thr) :
   while (not (gamma_ark == gamma_ark1) and not (gamma_ark == (gamma_ark1 - 1))) :
     gamma_ark2 = (gamma_ark + gamma_ark1) // 2
     eps2 = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, 
-                           gamma_ark2, t)
+                           gamma_ark2, t, cores)
     if (np.abs(log(eps2, 2) - log(eps_witness, 2))< thr) :
       eps1 = eps2
       gamma_ark1 = gamma_ark2
@@ -1254,7 +1260,7 @@ def optimize_gamma_ark (n, p, eps_witness, thr) :
   if (gamma_ark == (gamma_ark1 - 1)):
     return eps1, gamma_ark1
   
-def optimize_gamma_mc (n, p, eps_witness, thr, gamma_ark) :
+def optimize_gamma_mc (n, p, eps_witness, thr, gamma_ark, cores) :
   logp = int(log(p, 2))
   gamma_sb = 500
   l_gamma_sb = [500] * n
@@ -1264,7 +1270,7 @@ def optimize_gamma_mc (n, p, eps_witness, thr, gamma_ark) :
   gamma_mc = 20
 
   eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, gamma_ark, 
-                        t)
+                        t, cores)
   gamma_mc1 = gamma_mc
   eps1 = eps
 
@@ -1274,7 +1280,7 @@ def optimize_gamma_mc (n, p, eps_witness, thr, gamma_ark) :
       gamma_mc1 = gamma_mc
       gamma_mc = gamma_mc1 // 2
       eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, 
-                            gamma_ark, t)
+                            gamma_ark, t, cores)
     if (gamma_mc == 0) :
       if (np.abs(log(eps, 2) - log(eps_witness, 2)) < thr) :
         return eps, gamma_mc
@@ -1286,7 +1292,7 @@ def optimize_gamma_mc (n, p, eps_witness, thr, gamma_ark) :
       eps = eps1
       gamma_mc1 = 2 * gamma_mc1
       eps1 = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc1, 
-                            gamma_ark, t)
+                            gamma_ark, t, cores)
     gamma_mc = gamma_mc1 // 2
 
   #We have gamma_mc which is upper the threshold and gamma_mc1 which is under 
@@ -1295,7 +1301,7 @@ def optimize_gamma_mc (n, p, eps_witness, thr, gamma_ark) :
   while (not (gamma_mc == gamma_mc1) and not (gamma_mc == (gamma_mc1 - 1))) :
     gamma_mc2 = (gamma_mc + gamma_mc1) // 2
     eps2 = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc2, 
-                           gamma_ark, t)
+                           gamma_ark, t, cores)
     if (np.abs(log(eps2, 2) - log(eps_witness, 2))< thr) :
       gamma_mc1 = gamma_mc2
       eps1 = eps2
@@ -1309,7 +1315,7 @@ def optimize_gamma_mc (n, p, eps_witness, thr, gamma_ark) :
   if (gamma_mc == (gamma_mc1 - 1)):
     return eps1, gamma_mc1  
    
-def optimize_gamma_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc) :
+def optimize_gamma_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc, cores) :
   logp = int(log(p, 2))
   l_gamma_sb = [500] * n
   t = n // 2
@@ -1318,7 +1324,7 @@ def optimize_gamma_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc) :
   gamma_sb = 10
 
   eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, gamma_ark, 
-                        t)
+                        t, cores)
   gamma_sb1 = gamma_sb
   eps1 = eps
 
@@ -1329,7 +1335,7 @@ def optimize_gamma_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc) :
       eps1 = eps
       gamma_sb = gamma_sb1 // 2
       eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, 
-                            gamma_ark, t)
+                            gamma_ark, t, cores)
     if (gamma_sb == 0) :
       if (np.abs(log(eps, 2) - log(eps_witness, 2)) < thr) :
         return eps, gamma_sb
@@ -1341,7 +1347,7 @@ def optimize_gamma_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc) :
       eps = eps1
       gamma_sb1 = 2 * gamma_sb1
       eps1 = compute_RPC_AES(n, p, logp, gamma_sb1, l_gamma_sb, gamma_mc, 
-                            gamma_ark, t)
+                            gamma_ark, t, cores)
     gamma_sb = gamma_sb1 // 2
 
   #We have gamma_sb which is upper the threshold and gamma_sb1 which is under 
@@ -1349,7 +1355,7 @@ def optimize_gamma_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc) :
   while (not (gamma_sb == gamma_sb1) and not (gamma_sb == (gamma_sb1 - 1))) :
     gamma_sb2 = (gamma_sb + gamma_sb1) // 2
     eps2 = compute_RPC_AES(n, p, logp, gamma_sb2, l_gamma_sb, gamma_mc, 
-                            gamma_ark, t)
+                            gamma_ark, t, cores)
     if (np.abs(log(eps2, 2) - log(eps_witness, 2))< thr) :
       gamma_sb1 = gamma_sb2
       eps1 = eps2
@@ -1362,10 +1368,11 @@ def optimize_gamma_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc) :
 
   if (gamma_sb == (gamma_sb1 - 1)):
     eps = compute_RPC_AES(n, p, logp, gamma_sb1, l_gamma_sb, gamma_mc, 
-                          gamma_ark, t)
+                          gamma_ark, t, cores)
     return eps1, gamma_sb1
 
-def optimize_gamma_l_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc, gamma_sb) :
+def optimize_gamma_l_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc, gamma_sb, 
+                         cores) :
   nh = n // 2 + (n % 2)
   logp = int(log(p, 2))
   l_gamma_sb = [500] * (nh + 1)
@@ -1376,11 +1383,11 @@ def optimize_gamma_l_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc, gamma_sb) 
   for i in range (2, nh + 1) :
     l_gamma_sb[i] = 0
     eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, gamma_ark, 
-                          t)
+                          t, cores)
     while (np.abs(log(eps, 2) - log(eps_witness, 2)) >= thr) : 
       l_gamma_sb[i] += 5
       eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, 
-                            gamma_ark, t)
+                            gamma_ark, t, cores)
     if (l_gamma_sb[i] == 0) :
       continue
 
@@ -1391,7 +1398,7 @@ def optimize_gamma_l_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc, gamma_sb) 
       l_gamma_sb2 = l_gamma_sb
       l_gamma_sb2[i] = (l_gamma_sb[i] + l_gamma_sb1[i]) // 2
       eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb2, gamma_mc, 
-                            gamma_ark, t)
+                            gamma_ark, t, cores)
       if (np.abs(log(eps, 2) - log(eps_witness, 2)) < thr) :
         l_gamma_sb1[i] = l_gamma_sb2[i]
       else :
@@ -1408,7 +1415,7 @@ def optimize_gamma_l_sb (n, p, eps_witness, thr, gamma_ark, gamma_mc, gamma_sb) 
 ############  Main ############
 def main() :
 
-  
+  #cores = 192
   #logp = -20
   #p = 2**logp
   #n = 8
@@ -1460,14 +1467,14 @@ def main() :
   
   #Leakage rate : p = 2^{-20} 
   #Security Level : 64 --------------------------------------------------------- Done.
-  logp = -20
-  p = 2**logp
-  n = 8
-  gamma_sb = 10
-  l_gamma_sb = [0, 0, 0, 0, 2]
-  gamma_mc = 28
-  gamma_ark = 61
-  t = int (n / 2)
+  #logp = -20
+  #p = 2**logp
+  #n = 8
+  #gamma_sb = 10
+  #l_gamma_sb = [0, 0, 0, 0, 2]
+  #gamma_mc = 28
+  #gamma_ark = 61
+  #t = int (n / 2)
 
   #Security Level : 80 --------------------------------------------------------- Done.
   #logp = -20
@@ -1489,8 +1496,10 @@ def main() :
   #gamma_ark = 500
   #t = int (n / 2)
 
+  #cores = 192
+
   #eps = compute_RPC_AES(n, p, logp, gamma_sb, l_gamma_sb, gamma_mc, 
-  #                              gamma_ark, t)
+  #                              gamma_ark, t, cores)
   
   #n = 9
   #t = n // 2 + 1
@@ -1498,7 +1507,7 @@ def main() :
   #gamma = 57
   #l_gamma = [0, 0, 1, 4, 8, 12, 0, 0, 0] 
 
-  #eps = compute_tRPC_AES(n, p, gamma, l_gamma)
+  #eps = compute_tRPC_AES(n, p, gamma, l_gamma, cores)
 
   full_tRPC_AES(2**-20, 2**-64, 0.1)
   #print("Advantage eps threshold-RPC, Encryption AES = ", log(eps ,2))
@@ -1539,12 +1548,12 @@ def compute_graph () :
   plt.savefig("AES_encryption_security.png")
   
 
-def test(n, p, gamma, t) :
+def test(n, p, gamma, t, cores) :
   gamma_l = [0, 0, 500, 500, 500, 500, 500, 500, 500, 500, 500]
   pgref = cardinal_rpc_refresh_envelope(n, p, gamma)
   env_add = cardinal_rpc_add_envelope(n, p, pgref)
 
-  #env_mult = compute_envn_mult(n, p, gamma_l, gamma)    
+  #env_mult = compute_envn_mult(n, p, gamma_l, gamma, cores)    
   eps = compute_RPC_threshold (n, env_add, t) 
   
   #eps = compute_RPC_threshold_inner (n, t, pgref)
@@ -1556,11 +1565,12 @@ if __name__ == "__main__" :
   main()
   #compute_graph()
 
+  #cores = 192
   #n = 6
   #p = 2**-10
   #gamma = 500
   #t = 0
-  #test(n, p, gamma, t)
+  #test(n, p, gamma, t, cores)
 
   
 

@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+
+# This file computes the complexity of the different masked AES (our, 
+# the one of JMB24 and the one of BFO3), as well as the different complexity of 
+# the multiplication gadget that we compare (our, the one of JMB24 and the one 
+# of BFO23).  
+
 ################################################################################
 ################################ Packages ######################################
 import numpy as np
@@ -829,8 +835,6 @@ def comp_mult_bfo23 (n) :
   Returns:   
     Complexity of the mult gadget of BFO23.
   """
-  print("n = ", n)
-
   nb_rand = int(n * (n - 1) / 2)
   L = ceil(log(n + 1, 2)) 
   nb_add = n * ((1 << L) + n - 2)
@@ -1038,36 +1042,3 @@ def graph_complexity(p, logp, l_sec_level, crand, cadd, cmult,
   fig.tight_layout()
   fig.savefig(filename, bbox_inches="tight")
   plt.close(fig)
-
-
-  
-#Nothing interesting.
-def compare_RPE() :
-  logp = -9.5
-  p = 2**logp
-  sec_level = 2**80
-  
-  #Complexity RPE :
-  Nadd_RPE = 21962863500
-  #Ncopy_RPE = 11307611100
-  Nmult_RPE = 217890000
-  Nrand_RPE = 10872746400
-
-  n = 20
-  gamma_ark = 20
-  gamma_mc = 20
-  gamma_sb = 21
-  l_gamma_sb = [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-  
-  Nrand, Nadd, Nmult, tmp  = comp_AES_enc (n, gamma_ark, l_gamma_sb, gamma_sb, gamma_mc)
-  
-  print("Rand :     RPE : " + str(log(Nrand_RPE, 2)) + ",         my work : " + str(log(Nrand, 2)))
-  print("Add :      RPE : " + str(log(Nadd_RPE, 2)) + ",         my work : " + str(log(Nadd, 2)))
-  print("Mult :     RPE : " + str(log(Nmult_RPE, 2)) + ",         my work : " + str(log(Nmult, 2)))
-  
-
-if __name__ == "__main__" :
-  print("main")
-
-
-
