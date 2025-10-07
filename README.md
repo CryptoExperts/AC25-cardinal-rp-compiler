@@ -66,7 +66,7 @@ If you intend to change any parameter values, check the function’s documentati
 in `results.py` for a better understanding of what each parameter does.
 
 
-## Organization of the file
+## Organization of the Repository
 
   1. 'results.py' : Contains the **results** that are exhibited in the paper  
     
@@ -155,6 +155,9 @@ in `results.py` for a better understanding of what each parameter does.
   The implementation targets numbers of shares $n$ that are powers of two.
   This file is used to produce **Figure 7** of the full paper (uniform symmetric 
   variant),generating the points labeled `Unif = 4` and `Unif = 8` on the graph.
+
+  9. A repository `results` containing all the precomputations made for the 
+  graphs (which can be removed without any issues).
 
 ##
 
