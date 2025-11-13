@@ -518,92 +518,35 @@ def histo_AES_complexity (p_values, l_sec_level, cores) :
                      "AES_histo_p" +str(logp) +".pdf", security)
   
 
-def complexity_cRPCvstRPC (n, p, thr, cores) :
+def comparison_cRPCvstRPC (n, p, thr, cores) : 
   """
-  Plot complexity comparison between threshold RPC (tRPC) and cardinal RPC 
-  (cRPC) at AES block level.
+  Compare for a fixed number of shares n and a leakage rate p, the threshold RPC
+  security of the masked AES using 2 different techniques : 
+    1. Deriving the threshold RPC security of the AES directly from the 
+    threshold RPC of the gadgets composing the AES.
+    2. Deriving the threshold RPC security of the AES from the cardinal RPC 
+    security of the gadget and there composition.
 
-  This reproduces the illustrative graphs supporting the statement:
-  at ``p = 2^{-20}``, the block-level **cardinal RPC** compiler already exceeds the 64-bit
-  target (with exactly ``ε = 2^{-67}``) with ``n = 8`` shares, whereas directly combining
-  the **threshold RPC** advantages (copies included) would only yield ``ε = 2^{-61}``
-  under the same ``(p, n)`` setting.
-
-  Although this figure does **not appear** in the paper, it was generated to 
-  support the *last sentence of the main body* of our article, right before 
-  the Appendix section.
+  
+  This supports the statement:
+  At ``p = 2^{-20}``, the block-level **cardinal RPC** compiler already exceeds 
+  the 64-bit target (with exactly ``ε = 2^{-67}``) with ``n = 8`` shares, 
+  whereas directly combining the **threshold RPC** advantages (copies included) 
+  would only yield ``ε = 2^{-61}`` under the same ``(p, n)`` setting.
 
   Args:
     n (int): Number of shares.
     p (float): Probability leakage rate.
     thr (float): Threshold parameter for the comparison (passed to 
     ``compare_cRPC_tRPC_AES``).
-    cores (int) : Number of cores.
-
-  Returns:
-    None: Saves a 3-panel bar chart PDF comparing Randoms, Additions, and 
-    Multiplications.
+    cores (int) : Number of cores.  
   """
-
-  logp = int(log(p, 2))
-  res_tuple = compare_cRPC_tRPC_AES(n, p, thr, cores)
   
+  res_tuple = compare_cRPC_tRPC_AES(8, 2**-20, 0.1, cores)
   eps_tRPC = res_tuple[0]
-  gamma = res_tuple[1]
-  l_gamma_mult = res_tuple[2]
-
-  cr_trpc, ca_trpc, cm_trpc, crb_trpc = comp_AES_enc(n, gamma, l_gamma_mult, 
-                                                     gamma, gamma)
-
   eps_cRPC = res_tuple[3]
-  gamma_ark = res_tuple[4]
-  gamma_mc = res_tuple[5]
-  gamma_sb = res_tuple[6]
-  l_gamma_sb = res_tuple[7]
-
-  cr_crpc, ca_crpc, cm_crpc, crb_crpc  = comp_AES_enc(n, gamma, l_gamma_mult, 
-                                                       gamma, gamma_mc)
-
-  fig, ax = plt.subplots(1, 3, figsize=(12, 4), dpi=300)
-  
-  x1 = int(log(eps_tRPC, 2))
-  x2 = int(log(eps_cRPC, 2))
-  w = 1
-  
-  
-  ax[0].bar(x1, cr_trpc, width = w, label = "tRPC", color = 'C2')  
-  ax[0].bar(x1, crb_trpc, bottom = cr_trpc, label = "tRPC - rb", 
-            color = 'lightgreen', width = w)
-  ax[0].bar(x2, cr_crpc, width = w, label = "cRPC", color = 'C0')
-  ax[0].bar(x2, crb_crpc, bottom  = cr_crpc, width = w, label = "cRPC - rb", 
-            color = 'skyblue') 
-  ax[0].set_ylabel("Number of randoms")
-  ax[0].set_xlabel("Security Level")
-  ax[0].set_title(r'\#Rand')
-  ax[0].legend(fontsize = "x-small")
-  ax[0].set_xticks([x1, x2]) 
-
-  ax[1].bar(x1, ca_trpc, width = w, label = "tRPC", color = 'C2')  
-  ax[1].bar(x2, ca_crpc, label = "cRPC", width = w, color = 'C0')
-  ax[1].set_ylabel("Number of additions")
-  ax[1].set_xlabel("Security Level")
-  ax[1].set_title(r'\#Add')
-  ax[1].legend(fontsize = "small")    
-  ax[1].set_xticks([x1, x2]) 
-
-  ax[2].bar(x1, cm_trpc, width = w, label = "tRPC", color = 'C2')  
-  ax[2].bar(x2, cm_crpc, label = "cRPC", width = w, color='C0')
-  ax[2].set_ylabel("Number of multiplications")
-  ax[2].set_xlabel("Security Level")
-  ax[2].set_title(r'\#Mult')
-  ax[2].legend(fontsize = "small")  
-  ax[2].set_xticks([x1, x2]) 
-  
-  fig.tight_layout()
-  fig.savefig("cRPCvstRPC_n"+str(n)+"_p"+str(logp)+".pdf", bbox_inches="tight")
-  plt.close(fig)
-  
-
+  print("Threshold RPC Security of AES using cardinal RPC block level approach : ", np.round(log(eps_cRPC, 2), 2))
+  print("Threshold RPC Security using threshold RPC of gadgets : ", np.round(log(eps_tRPC, 2), 2))
 
 if __name__ == "__main__" :
   
@@ -634,7 +577,12 @@ if __name__ == "__main__" :
   histo_AES_complexity([2**-20], [2**-64, 2**-80, 2**-128], cores)
   histo_AES_complexity ([2**-16], [2**-64, 2**-80], cores)
 
-  #Last sentence of the main body.
-  complexity_cRPCvstRPC (8, 2**-20, 0.1, cores)
+  #Last paragraph of the main body of the full version (end of page 28).
+  #
+  # 'Beyond these results, we also compare the combination [...] This gap 
+  #  highlights the benefit of (block-level) cardinal RPC.' 
+  #
+  comparison_cRPCvstRPC(8, 2**-20, 0.1, cores)
+  
 
 

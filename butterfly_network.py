@@ -1040,9 +1040,9 @@ def env_gen_st1(n, p, gamma) :
  
   return final_env
 
-#Note : It is the same final scheme for the computation of the general RPC 
+# Note : It is the same final scheme for the computation of the general RPC 
 # enveloppe and the (uniformly) cardinal RPC enveloppe. The order of the 
-# precomputation is different. TODO : Standardize choices.
+# precomputation is different.
 
 ################################################################################
 ################################################################################

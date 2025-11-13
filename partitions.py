@@ -3,7 +3,11 @@
 ##################################################################
 #
 # This file contains all the scripts necessary to reproduce 
-# the results presented in the paper.
+# the results presented in the paper :
+# 
+# New Techniques for Random Probing Security and Application to Raccoon Signature Scheme
+#  
+# url : https://ia.cr/2025/278
 #
 # The TESTS section at the end of this file provides functions  
 # to recalculate the numerical results and generate the graphs 

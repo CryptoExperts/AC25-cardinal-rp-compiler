@@ -385,29 +385,14 @@ def compute_proba(nx, ny, j, ix, iy, prec1, prec2, hypergeom) :
           pr += sub_pr 
   return pr
 
-def final_induction_enveloppes(nx, ny, p, start_env) :
-  """
-  TODO
-  """
-  nxh = nx // 2
-  nyh = ny // 2
-  lim_card = nx * ny + 1
-  env = np.zeros((lim_card, nx + 1, ny + 1))
-  for j in range(lim_card) :
-    for ix in range (nx + 1) :
-      for iy in range (ny + 1) :
-        for lx in range (ix + 1) :
-          for ly in range (iy + 1) :
-            comb1 = comb(nx - ix + lx, lx)
-            comb2 = comb(ny - iy + ly, ly)
-            env[j, ix, iy] += comb1 * comb2 * p**(lx + ly) * (1 - p)**(nx + ny - ix - iy) * start_env[j, ix - lx, iy - ly]
-        env[j, ix, iy] = min (1,  env[j, ix, iy])
-  return env
-
 def induction_envelopes(nx, ny, prec1, prec2, ix, iy, hypergeom, queue) :
   """
   Compute the cardinal-RPC envelopes  ε_{j}(ix, iy) of UnifMatMult for all j in
   range [0, nx.ny].
+
+  ** Warning : ** We don't take into account in this function the third wire 
+  leaked during the copy of each half-sharing in UnifMatMult (see Figure 5 of 
+  the full paper). This is taking into account in final_induction_enveloppes.
 
   Args:
     nx: Number of shares for the secret x.
@@ -431,7 +416,39 @@ def induction_envelopes(nx, ny, prec1, prec2, ix, iy, hypergeom, queue) :
     env[j, ix, iy] += min(pr_ix_iy / card_part[j], 1)
 
   queue.put((env, ix, iy))
-  return  
+  return
+
+def final_induction_enveloppes(nx, ny, p, start_env) :
+  """
+  Compute the cardinal-RPC envelopes  ε_{j}(ix, iy) of UnifMatMult for all j in
+  range [0, nx.ny], when we take into account the leakage of the third wire 
+  during the copy of the half sharing. Hence, this is the enveloppe of the 
+  function induction_enveloppes in addition with the leakage of these third 
+  wires.
+
+  Args:
+    nx: Number of shares for the secret x.
+    ny: Number of shares for the secret y.
+    p : Probability Leakage rate.
+    env_start : The enveloppe returned by induction_enveloppes.
+
+  Returns:
+    ε_{j}(ix, iy) for all j in range [0, nx.ny]
+  """
+  nxh = nx // 2
+  nyh = ny // 2
+  lim_card = nx * ny + 1
+  env = np.zeros((lim_card, nx + 1, ny + 1))
+  for j in range(lim_card) :
+    for ix in range (nx + 1) :
+      for iy in range (ny + 1) :
+        for lx in range (ix + 1) :
+          for ly in range (iy + 1) :
+            comb1 = comb(nx - ix + lx, lx)
+            comb2 = comb(ny - iy + ly, ly)
+            env[j, ix, iy] += comb1 * comb2 * p**(lx + ly) * (1 - p)**(nx + ny - ix - iy) * start_env[j, ix - lx, iy - ly]
+        env[j, ix, iy] = min (1,  env[j, ix, iy])
+  return env  
   
 def compute_partition_J(nx, ny) :
   """
