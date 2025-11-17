@@ -21,6 +21,9 @@ In the following, we may refer to the full version of this publication, which in
 
 https://ia.cr/2025/1747
 
+This project reuses the [partitions.py] file from another CryptoExperts 
+MIT-licensed repository.
+
 ## Dependencies
 
 This script requires : 
@@ -117,7 +120,7 @@ in [results.py] for a better understanding of what each parameter does.
   used to compute **Figure 8** of the paper. 
 
   3. [partitions.py] : gives the cardinal-RPC enveloppes of the **linear gadget** 
-  used as well as the **refresh gadget**, not a code from us, code taken from 
+  used as well as the **refresh gadget**, code taken from 
 
       https://github.com/CryptoExperts/EC25-random-probing-Raccoon
   
