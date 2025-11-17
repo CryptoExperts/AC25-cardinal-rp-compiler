@@ -1,18 +1,38 @@
+
+[results.py]:results.py
+[mult_gen.py]:mult_gen.py
+[mult_4card.py]:mult_4card.py
+[mult_uni_4card.py]:mult_uni_4card.py
+[partitions.py]:partitions.py
+[AES.py]:AES.py
+[complexity.py]:complexity.py
+[butterfly_network.py]:butterfly_network.py
+
+
+
+
 # AC25 - Cardinal RP Compiler
 
 This repository contains all the scripts necessary to reproduce the results presented in the paper:
 
 "Masked Circuit Compiler in the Cardinal Random Probing Composability Framework" by Sonia Belaïd, Victor Normand and Matthieu Rivain, published at Asiacrypt 2025.
 
+In the following, we may refer to the full version of this publication, which includes an appendix and minor revisions to the main text. In particular, additional figures have been included, some in the main body and others in the appendix, which is why we refer to figures from the full version rather than those in the published version. The full version is available here:
+
+https://ia.cr/2025/1747
+
 ## Dependencies
 
 This script requires : 
   - Python 3.x
-  - `numpy`, `matplotlib`, `scipy`, `simpy`
+  - `numpy`, `matplotlib`, `scipy`, `sympy`
+  - `cm-super` package
 
 To install dependencies, run :
 
-`pip install numpy matplotlib scipy simpy`
+`pip install numpy matplotlib scipy sympy`
+
+`sudo apt install cm-super`
 
 ## Usage
 
@@ -23,7 +43,7 @@ To obtain the graphs used in the paper, please run the following command :
 
 By default, this script uses $16$ cores to run, if you want to increase or 
 reduce the number of cores, you are invited to specify it at the end of the 
-file `results.py` :
+file [results.py] :
 
 ```
 if __name__ == "__main__" :
@@ -63,12 +83,12 @@ Moreover, if you want to obtain only some graphs precisely, please comment the
 adequate function, each one is responsible for a figure of the paper, which is 
 commented above the function.
 If you intend to change any parameter values, check the function’s documentation 
-in `results.py` for a better understanding of what each parameter does.
+in [results.py] for a better understanding of what each parameter does.
 
 
 ## Organization of the Repository
 
-  1. 'results.py' : Contains the **results** that are exhibited in the paper  
+  1. [results.py] : Contains the **results** that are exhibited in the paper  
     
         "Masked Circuit Compiler in the Cardinal Random Probing Composability 
     Framework"
@@ -76,11 +96,11 @@ in `results.py` for a better understanding of what each parameter does.
         Each function is responsible for one or many graphs of the paper and 
     will be highlighted above the function. 
 
-  2. 'mult_gen.py' : computes the cardinal-RPC envelopes uniform variant of 
+  2. [mult_gen.py] : computes the cardinal-RPC envelopes uniform variant of 
   *CardSecMult* (i.e. the **multiplication gadget**) for every number of shares 
   $n \geq 2$. We consider in this file 
   that the output of *UnifMatMult* is given as a single $n^2$ instead of the 
-  file ``mult_4card.py`` and ``mult_uni_4card.py`` which consider 4 
+  file [mult_4card.py] and [mult_uni_4card.py] which consider 4 
   $(\frac{n^2}{4})$ sharings at the output of *UnifMatMult*.
   Consequently, we consider a single input sharing of size $n^2$ at the input of 
   TreeAdd. 
@@ -96,7 +116,7 @@ in `results.py` for a better understanding of what each parameter does.
   Moreover, functions `find_plateau_RPM_n` and `find_plateau_RPM` are the one 
   used to compute **Figure 8** of the paper. 
 
-  3. 'partition.py' : gives the cardinal-RPC enveloppes of the **linear gadget** 
+  3. [partitions.py] : gives the cardinal-RPC enveloppes of the **linear gadget** 
   used as well as the **refresh gadget**, not a code from us, code taken from 
 
       https://github.com/CryptoExperts/EC25-random-probing-Raccoon
@@ -104,20 +124,20 @@ in `results.py` for a better understanding of what each parameter does.
       **Warning :** We slightly modify some element, in particular, the way to 
   obtain the copy gadget. 
    
-  4. 'AES.py' : Compute the 
+  4. [AES.py] : Compute the 
   **random probing security of our masked AES encryption**, 
   build with our compiler described in *Section 6*. In addition,
   it enables to **optimize automatically the $\gamma$** taken (i.e. the number of 
   iteration in *RPRefresh*) for each block *Subbytes*, *AddRoundKey* and 
   *MixColumns*.
 
-  5. 'complexity.py' : Computes the **complexity** of the different masked *AES* 
+  5. [complexity.py] : Computes the **complexity** of the different masked *AES* 
   (*our*, the one of *JMB24* and the one of *BFO3*), as well as the 
   different complexity of the multiplication gadget that we compare (*our*, 
   the one of *JMB24* and the one of *BFO23*). 
 
 
-  6. 'butterfly_network.py' : Enables the computation of the *cardinal RPC*/ 
+  6. [butterfly_network.py] : Enables the computation of the *cardinal RPC*/ 
   *uniformly cardinal RPC*/ *general RPC* envelopes for variants of the 
   **1-stage Butterfly Network** and the **2-stage Butterfly Network**. 
   Then it enables to compute the **threshold RPC security** of the 1-stage and 
@@ -130,11 +150,11 @@ in `results.py` for a better understanding of what each parameter does.
   of the full paper).
 
 
-  7. 'mult_4_card.py' : This file computes the cardinal-RPC envelopes 
+  7. [mult_4card.py] : This file computes the cardinal-RPC envelopes 
   **non-uniform variant of CardSecMult**.
   Moreover, it computes it by **cutting the number of outputs of MatMult in 4** 
   to obtain better security. In fact, *MatMult* exposes four outputs of size 
-  $\frac{n^2}{4}$, one per subtree (see **Figure 5** of the paper)—instead of a 
+  $\frac{n^2}{4}$, one per subtree (see **Figure 5** of the full paper)—instead of a 
   single aggregated output of size $n^2$. 
   Accordingly, *TreeAdd* takes four inputs, each of size $\frac{n^2}{4}$, 
   instead of a single input of size $n^2$. 
@@ -143,12 +163,12 @@ in `results.py` for a better understanding of what each parameter does.
   variant), generating the points labeled `Unif = 4` and `Unif = 8` on the 
   graph. The **Figure 7** is notably built with the function ``compute_graph``.
   
-  8. 'mult_uni_4_card.py' : This file computes the cardinal-RPC envelopes 
+  8. [mult_uni_4card.py] : This file computes the cardinal-RPC envelopes 
   **uniform variant of CardSecMult**.
   Moreover, it computes it by **cutting the number of outputs of MatMult in 4** 
   to obtain better security. 
   In fact, *MatMult* exposes four outputs of size $\frac{n^2}{4}$, 
-  one per subtree (see **Figure 5** of the paper)—instead of a single aggregated 
+  one per subtree (see **Figure 5** of the full paper)—instead of a single aggregated 
   output of size $n^2$. 
   Accordingly, *TreeAdd* takes four inputs, each of size $\frac{n^2}{4}$, 
   instead of a single input of size $n^2$. 
@@ -158,6 +178,10 @@ in `results.py` for a better understanding of what each parameter does.
 
   9. A repository `results` containing all the precomputations made for the 
   graphs (which can be removed without any issues).
+
+## License
+
+This project is distributed under the **MIT License**.
 
 ##
 
